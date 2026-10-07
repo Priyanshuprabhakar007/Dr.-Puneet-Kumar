@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useSite } from '../../context/SiteContext';
 import { SiteSettings, SeoSettings, ClinicLocation } from '../../types';
 import { Save, Building, Phone, MapPin, Globe, ShieldAlert, Database, CheckCircle2, RefreshCw } from 'lucide-react';
+import { ImageUploadField } from './ImageUploadField';
 
 export const AdminSettingsTab: React.FC = () => {
   const { data, updateSection, showToast, isFirebaseConnected } = useSite();
@@ -264,12 +265,12 @@ export const AdminSettingsTab: React.FC = () => {
           </div>
 
           <div>
-            <label className="block font-bold text-slate-700 mb-1">Open Graph / Social Preview Image URL</label>
-            <input
-              type="text"
+            <ImageUploadField
+              label="Open Graph / Social Share Preview Image"
               value={seo.ogImage}
-              onChange={(e) => setSeo({ ...seo, ogImage: e.target.value })}
-              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl"
+              onChange={(val) => setSeo({ ...seo, ogImage: val })}
+              category="General"
+              helperText="Displayed when sharing clinic links on WhatsApp, Facebook, LinkedIn, and Twitter/X."
             />
           </div>
         </div>

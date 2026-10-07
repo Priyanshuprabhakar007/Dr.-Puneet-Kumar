@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useSite } from '../../context/SiteContext';
 import { MediaAsset } from '../../types';
-import { Plus, Image, Copy, Trash2, CheckCircle2, X } from 'lucide-react';
+import { Plus, Copy, Trash2, Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
 
 export const AdminMediaTab: React.FC = () => {
   const { data, updateSection, showToast } = useSite();
   const [media, setMedia] = useState<MediaAsset[]>(data.media || []);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [newAsset, setNewAsset] = useState<Partial<MediaAsset>>({
     title: 'Clinic Photo',
@@ -22,6 +24,63 @@ export const AdminMediaTab: React.FC = () => {
     }
   };
 
+  const handleDirectFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+    if (!validMimes.includes(file.type.toLowerCase())) {
+      showToast('Please select a valid JPG, PNG, or WEBP image.', 'error');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image size exceeds 5MB limit.', 'error');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('title', file.name.replace(/\.[^/.]+$/, ''));
+      formData.append('category', newAsset.category || 'General');
+
+      const response = await fetch('/api/admin/media/upload', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Upload failed');
+      }
+
+      const created: MediaAsset = result.media || {
+        id: `media-${Date.now()}`,
+        title: file.name.replace(/\.[^/.]+$/, ''),
+        url: result.url,
+        altText: file.name.replace(/\.[^/.]+$/, ''),
+        category: (newAsset.category as any) || 'General',
+        createdAt: new Date().toISOString()
+      };
+
+      const updated = [created, ...media];
+      setMedia(updated);
+      await updateSection('media', updated);
+      showToast('Image uploaded and added to Media Library!', 'success');
+    } catch (err: any) {
+      console.error('Direct media upload error:', err);
+      showToast(err.message || 'Image upload failed.', 'error');
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const handleAddMedia = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAsset.url) return;
@@ -30,7 +89,7 @@ export const AdminMediaTab: React.FC = () => {
       id: `media-${Date.now()}`,
       title: newAsset.title || 'New Media',
       url: newAsset.url,
-      altText: newAsset.altText || 'Medical Photo',
+      altText: newAsset.altText || newAsset.title || 'Medical Photo',
       category: (newAsset.category as any) || 'General',
       createdAt: new Date().toISOString()
     };
@@ -39,33 +98,63 @@ export const AdminMediaTab: React.FC = () => {
     setMedia(updated);
     await updateSection('media', updated);
     setIsAddModalOpen(false);
-    setNewAsset({ title: '', url: '', altText: '', category: 'Doctor' });
+    setNewAsset({ title: 'Clinic Photo', url: '', altText: 'Doctor Clinic OPD', category: 'Doctor' });
     showToast('Media added to library!', 'success');
   };
 
   const handleDeleteMedia = async (id: string) => {
     if (!confirm('Remove image from library?')) return;
+    try {
+      await fetch(`/api/media/${id}`, { method: 'DELETE', credentials: 'same-origin' });
+    } catch (err) {
+      console.warn('Could not delete on server:', err);
+    }
     const updated = media.filter((m) => m.id !== id);
     setMedia(updated);
     await updateSection('media', updated);
+    showToast('Image removed from library.', 'info');
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between border-b border-slate-200 pb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Media & Photography Library</h2>
+          <h2 className="text-xl font-bold text-slate-900">Media &amp; Photography Library</h2>
           <p className="text-xs text-slate-500">
-            View and manage clinic photos, doctor portraits, and medical graphics
+            View, upload, and organize clinic photos, doctor portraits, and medical banners
           </p>
         </div>
-        <button
-          onClick={() => setIsAddModalOpen(true)}
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded-2xl shadow-xs transition-colors cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Media URL</span>
-        </button>
+
+        <div className="flex items-center gap-2">
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            ref={fileInputRef}
+            onChange={handleDirectFileUpload}
+            className="hidden"
+          />
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-blue-700 hover:bg-blue-800 disabled:opacity-50 text-white font-bold text-xs rounded-2xl shadow-xs transition-colors cursor-pointer"
+          >
+            {isUploading ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Upload className="w-4 h-4" />
+            )}
+            <span>{isUploading ? 'Uploading...' : 'Upload Image File'}</span>
+          </button>
+
+          <button
+            onClick={() => setIsAddModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-2xl border border-slate-200 shadow-2xs transition-colors cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add External URL</span>
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -77,8 +166,12 @@ export const AdminMediaTab: React.FC = () => {
             <div className="aspect-square bg-slate-100 relative overflow-hidden">
               <img
                 src={item.url}
-                alt={item.altText}
+                alt={item.altText || item.title}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src =
+                    'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="%2394a3b8" stroke-width="1.5"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>';
+                }}
               />
               <span className="absolute top-2 left-2 bg-slate-900/80 text-white text-[10px] font-bold px-2 py-0.5 rounded">
                 {item.category}
@@ -98,6 +191,7 @@ export const AdminMediaTab: React.FC = () => {
                 <button
                   onClick={() => handleDeleteMedia(item.id)}
                   className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
+                  title="Delete media"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -111,7 +205,7 @@ export const AdminMediaTab: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-              <h3 className="text-base font-bold text-slate-900">Add Image to Library</h3>
+              <h3 className="text-base font-bold text-slate-900">Add Image URL to Library</h3>
               <button onClick={() => setIsAddModalOpen(false)}>
                 <X className="w-4 h-4 text-slate-400" />
               </button>
@@ -169,7 +263,7 @@ export const AdminMediaTab: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-2xl mt-2"
+                className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-2xl mt-2 cursor-pointer"
               >
                 Add Image
               </button>

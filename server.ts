@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import multer from 'multer';
 import { createServer as createViteServer } from 'vite';
 import {
   getDatabase,
@@ -107,9 +108,59 @@ async function startServer() {
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), payment=(), usb=(), display-capture=()');
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://images.unsplash.com https://img.youtube.com; frame-src 'self' https://www.google.com https://maps.google.com https://www.youtube.com https://www.youtube-nocookie.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';"
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; frame-src 'self' https://www.google.com https://maps.google.com https://www.youtube.com https://www.youtube-nocookie.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';"
     );
     next();
+  });
+
+  // Persistent Media Uploads Storage Setup
+  const uploadsDir = path.resolve(process.cwd(), 'uploads');
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+
+  // Static serving of persistent user-uploaded media (with 1-year immutable caching)
+  app.use(
+    '/uploads',
+    express.static(uploadsDir, {
+      maxAge: '1y',
+      immutable: true,
+      setHeaders: (res) => {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+      }
+    })
+  );
+
+  // Multer configuration with strict mime validation, 5MB file limit, and randomized safe filenames
+  const diskStorage = multer.diskStorage({
+    destination: (_req, _file, cb) => {
+      cb(null, uploadsDir);
+    },
+    filename: (_req, file, cb) => {
+      const extMatch = file.originalname.match(/\.(jpg|jpeg|png|webp)$/i);
+      const ext = extMatch
+        ? extMatch[1].toLowerCase()
+        : file.mimetype === 'image/png'
+        ? 'png'
+        : file.mimetype === 'image/webp'
+        ? 'webp'
+        : 'jpg';
+      const safeName = `img-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+      cb(null, safeName);
+    }
+  });
+
+  const upload = multer({
+    storage: diskStorage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+    fileFilter: (_req, file, cb) => {
+      const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
+      if (allowedMimes.includes(file.mimetype.toLowerCase())) {
+        cb(null, true);
+      } else {
+        cb(new Error('Invalid image file. Only JPG, JPEG, PNG, and WEBP formats are supported.'));
+      }
+    }
   });
 
   // Strict Request Body Limits (Protection against oversized payload DoS)
@@ -610,6 +661,53 @@ async function startServer() {
     res.json(db.media || []);
   });
 
+  // Admin: Upload Image File (Accepts JPG, PNG, WEBP <= 5MB, returns persistent URL and creates media record)
+  app.post('/api/admin/media/upload', requireAdmin, (req, res) => {
+    upload.single('file')(req, res, async (err) => {
+      if (err) {
+        if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({ error: 'Image file size exceeds the 5MB limit.' });
+        }
+        return res.status(400).json({ error: err.message || 'Image upload failed.' });
+      }
+
+      if (!req.file) {
+        return res.status(400).json({ error: 'No image file was provided in the upload request.' });
+      }
+
+      try {
+        const publicUrl = `/uploads/${req.file.filename}`;
+        const rawTitle = req.body.title || req.body.name || req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, ' ').trim();
+        const title = String(rawTitle || 'Uploaded Image').slice(0, 100);
+        const category = (req.body.category || 'General') as any;
+        const altText = String(req.body.altText || title).slice(0, 200);
+        const sizeStr = `${(req.file.size / 1024).toFixed(1)} KB`;
+
+        const item = await addMediaItem({
+          name: title,
+          url: publicUrl,
+          category,
+          altText,
+          size: sizeStr
+        });
+
+        res.status(201).json({
+          success: true,
+          url: publicUrl,
+          filename: req.file.filename,
+          media: item
+        });
+      } catch (saveErr) {
+        console.error('Error recording uploaded media in database:', saveErr);
+        res.status(201).json({
+          success: true,
+          url: `/uploads/${req.file.filename}`,
+          filename: req.file.filename
+        });
+      }
+    });
+  });
+
   app.post('/api/media', requireAdmin, async (req, res) => {
     try {
       const { name, url, category, altText, size } = req.body;
@@ -634,6 +732,22 @@ async function startServer() {
   app.delete('/api/media/:id', requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
+      const db = await getDatabaseAsync();
+      const item = (db.media || []).find((m) => m.id === id);
+
+      // If local uploaded file, safely remove physical file
+      if (item && item.url && item.url.startsWith('/uploads/')) {
+        const filename = path.basename(item.url);
+        const filePath = path.join(uploadsDir, filename);
+        if (fs.existsSync(filePath)) {
+          try {
+            fs.unlinkSync(filePath);
+          } catch (unlinkErr) {
+            console.warn('[Storage] Could not unlink media file:', unlinkErr);
+          }
+        }
+      }
+
       const deleted = await deleteMediaItem(id);
       if (!deleted) {
         return res.status(404).json({ error: 'Media not found' });

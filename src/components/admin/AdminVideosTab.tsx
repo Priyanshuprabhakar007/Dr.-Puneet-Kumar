@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useSite } from '../../context/SiteContext';
 import { VideoItem } from '../../types';
 import { Plus, Trash2, Edit2, Play, X, Save } from 'lucide-react';
+import { ImageUploadField } from './ImageUploadField';
 
 export const AdminVideosTab: React.FC = () => {
   const { data, updateSection, showToast } = useSite();
@@ -171,14 +172,12 @@ export const AdminVideosTab: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">Thumbnail URL</label>
-                <input
-                  type="text"
+                <ImageUploadField
+                  label="Video Thumbnail Image"
                   value={editingItem.thumbnailUrl}
-                  onChange={(e) =>
-                    setEditingItem({ ...editingItem, thumbnailUrl: e.target.value })
-                  }
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl"
+                  onChange={(val) => setEditingItem({ ...editingItem, thumbnailUrl: val })}
+                  category="General"
+                  helperText="Upload a 16:9 poster preview or enter an image URL."
                 />
               </div>
 

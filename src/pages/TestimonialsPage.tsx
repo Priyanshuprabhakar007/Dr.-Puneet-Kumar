@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
 import { useSite } from '../context/SiteContext';
-import { Star, CheckCircle2, Quote, Plus, X, Heart } from 'lucide-react';
+import { Star, CheckCircle2, Quote, Plus, X } from 'lucide-react';
 
 export const TestimonialsPage: React.FC = () => {
   const { data, showToast, submitTestimonial } = useSite();
@@ -9,6 +9,7 @@ export const TestimonialsPage: React.FC = () => {
 
   const [filterCategory, setFilterCategory] = useState('All');
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [reviewForm, setReviewForm] = useState({
     patientName: '',
     rating: 5,
@@ -16,6 +17,63 @@ export const TestimonialsPage: React.FC = () => {
     treatmentCategory: 'Diabetes Care',
     location: 'Mohali'
   });
+
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (isSubmitModalOpen) {
+      previousActiveElement.current = document.activeElement as HTMLElement;
+      document.body.style.overflow = 'hidden';
+
+      const timer = setTimeout(() => {
+        const firstInput = modalRef.current?.querySelector('input, button, select, textarea') as HTMLElement;
+        if (firstInput) firstInput.focus();
+      }, 50);
+
+      return () => clearTimeout(timer);
+    } else {
+      document.body.style.overflow = '';
+      if (previousActiveElement.current) {
+        previousActiveElement.current.focus();
+      }
+    }
+  }, [isSubmitModalOpen]);
+
+  // Keyboard accessibility: Escape to close and focus trap
+  useEffect(() => {
+    if (!isSubmitModalOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setIsSubmitModalOpen(false);
+        return;
+      }
+
+      if (e.key === 'Tab' && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0] as HTMLElement;
+        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            lastElement?.focus();
+            e.preventDefault();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            firstElement?.focus();
+            e.preventDefault();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isSubmitModalOpen]);
 
   const categories = ['All', 'Diabetes Care', 'Hypertension', 'Thyroid Care', 'General Medicine'];
 
@@ -32,23 +90,33 @@ export const TestimonialsPage: React.FC = () => {
 
   const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!reviewForm.patientName.trim() || !reviewForm.review.trim()) {
       showToast('Please fill all required fields.', 'error');
       return;
     }
-    const res = await submitTestimonial(reviewForm);
-    if (res.success) {
-      showToast(res.message, 'success');
-      setIsSubmitModalOpen(false);
-      setReviewForm({
-        patientName: '',
-        rating: 5,
-        review: '',
-        treatmentCategory: 'Diabetes Care',
-        location: 'Mohali'
-      });
-    } else {
-      showToast(res.message, 'error');
+
+    setIsSubmitting(true);
+    try {
+      const res = await submitTestimonial(reviewForm);
+      if (res.success) {
+        showToast(res.message, 'success');
+        setIsSubmitModalOpen(false);
+        setReviewForm({
+          patientName: '',
+          rating: 5,
+          review: '',
+          treatmentCategory: 'Diabetes Care',
+          location: 'Mohali'
+        });
+      } else {
+        showToast(res.message, 'error');
+      }
+    } catch {
+      showToast('An unexpected error occurred.', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -153,13 +221,24 @@ export const TestimonialsPage: React.FC = () => {
 
         {/* Submit Review Modal */}
         {isSubmitModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4">
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs"
+            onClick={() => setIsSubmitModalOpen(false)}
+          >
+            <div
+              ref={modalRef}
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="testimonial-modal-title"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="text-base font-bold text-slate-900">Share Your Experience</h3>
+                <h3 id="testimonial-modal-title" className="text-base font-bold text-slate-900">Share Your Experience</h3>
                 <button
                   onClick={() => setIsSubmitModalOpen(false)}
-                  className="p-1 rounded-2xl text-slate-400 hover:text-slate-600"
+                  aria-label="Close modal"
+                  className="p-1 rounded-2xl text-slate-400 hover:text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-600"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -167,10 +246,13 @@ export const TestimonialsPage: React.FC = () => {
 
               <form onSubmit={handleReviewSubmit} className="space-y-3 text-xs">
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Your Name *</label>
+                  <label htmlFor="test-name" className="block font-bold text-slate-700 mb-1">Your Name *</label>
                   <input
+                    id="test-name"
+                    name="patientName"
                     type="text"
                     required
+                    autoComplete="name"
                     placeholder="e.g. Manpreet S."
                     value={reviewForm.patientName}
                     onChange={(e) =>
@@ -182,8 +264,10 @@ export const TestimonialsPage: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Treatment Category</label>
+                    <label htmlFor="test-category" className="block font-bold text-slate-700 mb-1">Treatment Category</label>
                     <select
+                      id="test-category"
+                      name="treatmentCategory"
                       value={reviewForm.treatmentCategory}
                       onChange={(e) =>
                         setReviewForm({ ...reviewForm, treatmentCategory: e.target.value })
@@ -199,8 +283,10 @@ export const TestimonialsPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Rating</label>
+                    <label htmlFor="test-rating" className="block font-bold text-slate-700 mb-1">Rating</label>
                     <select
+                      id="test-rating"
+                      name="rating"
                       value={reviewForm.rating}
                       onChange={(e) =>
                         setReviewForm({ ...reviewForm, rating: Number(e.target.value) })
@@ -215,8 +301,10 @@ export const TestimonialsPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Your Feedback / Story *</label>
+                  <label htmlFor="test-review" className="block font-bold text-slate-700 mb-1">Your Feedback / Story *</label>
                   <textarea
+                    id="test-review"
+                    name="review"
                     rows={4}
                     required
                     placeholder="Share how Dr. Puneet's treatment helped manage your health..."
@@ -228,9 +316,10 @@ export const TestimonialsPage: React.FC = () => {
 
                 <button
                   type="submit"
-                  className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-2xl text-xs transition-colors cursor-pointer"
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 disabled:bg-slate-400 text-white font-bold rounded-2xl text-xs transition-colors cursor-pointer"
                 >
-                  Submit Patient Feedback
+                  {isSubmitting ? 'Submitting...' : 'Submit Patient Feedback'}
                 </button>
               </form>
             </div>

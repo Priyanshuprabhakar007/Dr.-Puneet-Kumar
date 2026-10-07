@@ -169,10 +169,13 @@ export const ContactPage: React.FC = () => {
                 )}
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Your Full Name *</label>
+                  <label htmlFor="contact-name" className="block font-bold text-slate-700 mb-1">Your Full Name *</label>
                   <input
+                    id="contact-name"
+                    name="name"
                     type="text"
                     required
+                    autoComplete="name"
                     placeholder="e.g. Balwinder Singh"
                     value={contactForm.name}
                     onChange={(e) => setContactForm({ ...contactForm, name: e.target.value })}
@@ -182,10 +185,14 @@ export const ContactPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Contact Phone *</label>
+                    <label htmlFor="contact-phone" className="block font-bold text-slate-700 mb-1">Contact Phone *</label>
                     <input
+                      id="contact-phone"
+                      name="phone"
                       type="tel"
                       required
+                      autoComplete="tel"
+                      inputMode="tel"
                       placeholder="e.g. 98140XXXXX"
                       value={contactForm.phone}
                       onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
@@ -194,9 +201,12 @@ export const ContactPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Email (Optional)</label>
+                    <label htmlFor="contact-email" className="block font-bold text-slate-700 mb-1">Email (Optional)</label>
                     <input
+                      id="contact-email"
+                      name="email"
                       type="email"
+                      autoComplete="email"
                       placeholder="your.email@example.com"
                       value={contactForm.email}
                       onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
@@ -206,8 +216,10 @@ export const ContactPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Subject</label>
+                  <label htmlFor="contact-subject" className="block font-bold text-slate-700 mb-1">Subject</label>
                   <select
+                    id="contact-subject"
+                    name="subject"
                     value={contactForm.subject}
                     onChange={(e) => setContactForm({ ...contactForm, subject: e.target.value })}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white text-xs"
@@ -220,8 +232,10 @@ export const ContactPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Message *</label>
+                  <label htmlFor="contact-message" className="block font-bold text-slate-700 mb-1">Message *</label>
                   <textarea
+                    id="contact-message"
+                    name="message"
                     rows={4}
                     required
                     placeholder="Write your query or message here..."

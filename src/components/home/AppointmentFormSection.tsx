@@ -182,14 +182,17 @@ export const AppointmentFormSection: React.FC = () => {
                   {/* Name & Phone */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label htmlFor="sec-patientName" className="block text-xs font-bold text-slate-700 mb-1">
                         Patient Full Name *
                       </label>
                       <div className="relative">
                         <User className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                         <input
+                          id="sec-patientName"
+                          name="patientName"
                           type="text"
                           required
+                          autoComplete="name"
                           placeholder="e.g. Jaspreet Kaur"
                           value={formData.patientName}
                           onChange={(e) => setFormData({ ...formData, patientName: e.target.value })}
@@ -199,14 +202,18 @@ export const AppointmentFormSection: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label htmlFor="sec-phone" className="block text-xs font-bold text-slate-700 mb-1">
                         Contact Phone Number *
                       </label>
                       <div className="relative">
                         <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                         <input
+                          id="sec-phone"
+                          name="phone"
                           type="tel"
                           required
+                          autoComplete="tel"
+                          inputMode="tel"
                           placeholder="e.g. 98150XXXXX"
                           value={formData.phone}
                           onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -219,11 +226,15 @@ export const AppointmentFormSection: React.FC = () => {
                   {/* Age & Gender */}
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Age</label>
+                      <label htmlFor="sec-age" className="block text-xs font-bold text-slate-700 mb-1">Age</label>
                       <input
+                        id="sec-age"
+                        name="age"
                         type="number"
                         min="1"
                         max="120"
+                        inputMode="numeric"
+                        autoComplete="off"
                         placeholder="e.g. 52"
                         value={formData.age}
                         onChange={(e) => setFormData({ ...formData, age: e.target.value })}
@@ -231,8 +242,10 @@ export const AppointmentFormSection: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Gender</label>
+                      <label htmlFor="sec-gender" className="block text-xs font-bold text-slate-700 mb-1">Gender</label>
                       <select
+                        id="sec-gender"
+                        name="gender"
                         value={formData.gender}
                         onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                         className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
@@ -247,13 +260,15 @@ export const AppointmentFormSection: React.FC = () => {
 
                   {/* Medical Concern */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label htmlFor="sec-concern" className="block text-xs font-bold text-slate-700 mb-1">
                       Reason for Consultation / Concern *
                     </label>
                     <input
+                      id="sec-concern"
+                      name="concern"
                       type="text"
                       required
-                      placeholder="e.g. Diabetes checkup, High BP, Prolonged fever, Thyroid evaluation"
+                      placeholder="e.g. Diabetes checkup, High BP, Thyroid, Fever"
                       value={formData.concern}
                       onChange={(e) => setFormData({ ...formData, concern: e.target.value })}
                       className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
@@ -263,12 +278,15 @@ export const AppointmentFormSection: React.FC = () => {
                   {/* Date & Time Slot */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label htmlFor="sec-preferredDate" className="block text-xs font-bold text-slate-700 mb-1">
                         Preferred Date *
                       </label>
                       <input
+                        id="sec-preferredDate"
+                        name="preferredDate"
                         type="date"
                         required
+                        min={new Date().toISOString().split('T')[0]}
                         value={formData.preferredDate}
                         onChange={(e) => setFormData({ ...formData, preferredDate: e.target.value })}
                         className="w-full px-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
@@ -276,12 +294,14 @@ export const AppointmentFormSection: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">
+                      <label htmlFor="sec-preferredTime" className="block text-xs font-bold text-slate-700 mb-1">
                         Preferred Slot
                       </label>
                       <div className="relative">
                         <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
                         <select
+                          id="sec-preferredTime"
+                          name="preferredTime"
                           value={formData.preferredTime}
                           onChange={(e) => setFormData({ ...formData, preferredTime: e.target.value })}
                           className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
@@ -297,10 +317,12 @@ export const AppointmentFormSection: React.FC = () => {
 
                   {/* Optional Message */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label htmlFor="sec-message" className="block text-xs font-bold text-slate-700 mb-1">
                       Previous Reports or Clinical Notes (Optional)
                     </label>
                     <textarea
+                      id="sec-message"
+                      name="message"
                       rows={2}
                       placeholder="e.g. Recent fasting blood sugar 195, taking Metformin 500mg..."
                       value={formData.message}

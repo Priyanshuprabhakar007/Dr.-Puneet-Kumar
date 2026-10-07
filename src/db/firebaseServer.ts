@@ -50,7 +50,12 @@ export function getServerFirestore(): any {
 
 export async function testFirebaseConnectivity(): Promise<boolean> {
   const db = getServerFirestore();
-  if (!db) return false;
+  if (!db) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('[Firebase Admin] Firestore database not connected in production.');
+    }
+    return false;
+  }
   try {
     const testRef = db.collection('_connectivity_test').doc('ping');
     await testRef.set({ timestamp: new Date().toISOString() });
@@ -59,6 +64,9 @@ export async function testFirebaseConnectivity(): Promise<boolean> {
     return true;
   } catch (err) {
     console.error('[Firebase Admin] Connectivity test FAIL:', err);
+    if (process.env.NODE_ENV === 'production') {
+      throw err;
+    }
     return false;
   }
 }
@@ -151,7 +159,10 @@ export async function loadFullDataFromFirestore(): Promise<any> {
     if (Object.keys(firestoreData).length === 0) return null;
     return firestoreData;
   } catch (err) {
-    console.warn('[Firebase Admin] Failed to load data from Firestore due to permission or connection error (falling back to initial data):', err);
+    console.error('[Firebase Admin] Failed to load data from Firestore:', err);
+    if (process.env.NODE_ENV === 'production') {
+      throw err;
+    }
     return null;
   }
 }

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { SiteProvider, useSite } from './context/SiteContext';
 
 // Common Components
@@ -85,7 +85,7 @@ function AppContent() {
       title = `Contact Clinic & Timings | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'} Mohali`;
     } else if (currentPath === '/book-appointment') {
       title = `Book Doctor Appointment | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'} Senior Physician`;
-    } else if (currentPath.startsWith('/admin')) {
+    } else if (currentPath === '/admin' || currentPath === '/admin/' || currentPath.startsWith('/admin/')) {
       title = `Admin Management Portal | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'} Clinic`;
     }
 
@@ -135,7 +135,7 @@ function AppContent() {
   // Route Dispatcher
   const renderRoute = () => {
     // Admin Route (dedicated dashboard layout)
-    if (currentPath.startsWith('/admin')) {
+    if (currentPath === '/admin' || currentPath === '/admin/' || currentPath.startsWith('/admin/')) {
       return <AdminPage />;
     }
 
@@ -176,6 +176,8 @@ function AppContent() {
       pageComponent = <NotFoundPage />;
     }
 
+    const shouldReduceMotion = useReducedMotion();
+
     return (
       <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-600 selection:text-white">
         <Header />
@@ -183,10 +185,10 @@ function AppContent() {
           <AnimatePresence mode="wait">
             <motion.div
               key={currentPath}
-              initial={{ opacity: 0 }}
+              initial={{ opacity: shouldReduceMotion ? 1 : 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2, ease: 'linear' }}
+              exit={{ opacity: shouldReduceMotion ? 1 : 0 }}
+              transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: 'linear' }}
             >
               {pageComponent}
             </motion.div>

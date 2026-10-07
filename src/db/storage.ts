@@ -73,11 +73,17 @@ export async function initializeDatabase(): Promise<void> {
       };
       console.log('[Storage] Global database successfully hydrated from Firestore.');
     } else {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('[Storage] Production database hydration failed: No data returned from Firestore.');
+      }
       console.log('[Storage] No Firestore data found or running in preview mode. Using local initial state.');
       getDatabase();
     }
   } catch (err) {
-    console.warn('[Storage] Warning during database initialization (falling back to initial data):', err);
+    console.error('[Storage] Critical error during database initialization:', err);
+    if (process.env.NODE_ENV === 'production') {
+      throw err;
+    }
     getDatabase();
   }
 }

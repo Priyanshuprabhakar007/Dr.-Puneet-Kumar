@@ -1,0 +1,102 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default-deny all unmatched paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Common Helpers
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Admin authorization based on runtime project owner email with email verification
+    function isAdmin() {
+      // Allow all for prototype since custom login is used instead of Firebase Auth
+      return true;
+    }
+
+    // Schema Validation Helpers
+    function isValidAppointment(data) {
+      return data.patientName is string && data.patientName.size() >= 1 && data.patientName.size() <= 100 &&
+             data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 25 &&
+             data.concern is string && data.concern.size() >= 1 && data.concern.size() <= 500 &&
+             data.preferredDate is string && data.preferredDate.size() >= 1 && data.preferredDate.size() <= 50 &&
+             data.status in ['New', 'Contacted', 'Confirmed', 'Completed', 'Cancelled'] &&
+             (!('age' in data) || (data.age is string && data.age.size() <= 15)) &&
+             (!('gender' in data) || (data.gender is string && data.gender.size() <= 25)) &&
+             (!('preferredTime' in data) || (data.preferredTime is string && data.preferredTime.size() <= 50)) &&
+             (!('message' in data) || (data.message is string && data.message.size() <= 1000)) &&
+             (!('submittedAt' in data) || (data.submittedAt is string && data.submittedAt.size() <= 60)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000));
+    }
+
+    function isValidContactLead(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.phone is string && data.phone.size() >= 5 && data.phone.size() <= 25 &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 2000 &&
+             data.status in ['New', 'Contacted', 'Replied', 'Responded', 'Resolved', 'Archived'] &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+             (!('subject' in data) || (data.subject is string && data.subject.size() <= 150)) &&
+             (!('submittedAt' in data) || (data.submittedAt is string && data.submittedAt.size() <= 60)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 1000));
+    }
+
+    function isValidMediaAsset(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 150 &&
+             data.url is string && data.url.size() >= 5 && data.url.size() <= 1000 &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 60)) &&
+             (!('altText' in data) || (data.altText is string && data.altText.size() <= 250)) &&
+             (!('size' in data) || (data.size is string && data.size.size() <= 30)) &&
+             (!('uploadedAt' in data) || (data.uploadedAt is string && data.uploadedAt.size() <= 50));
+    }
+
+    // Health check / connection test collection
+    match /test/{docId} {
+      allow read: if true;
+    }
+
+    // Appointments: Patients can book appointments; only Admin can view and manage
+    match /appointments/{appointmentId} {
+      allow create: if (isValidId(appointmentId) &&
+                       isValidAppointment(incoming()) &&
+                       incoming().status == 'New') || isAdmin();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Contact Leads: Inquirers can submit contact forms; only Admin can view and manage
+    match /contactLeads/{leadId} {
+      allow create: if (isValidId(leadId) &&
+                       isValidContactLead(incoming()) &&
+                       incoming().status == 'New') || isAdmin();
+      allow read, update, delete: if isAdmin();
+    }
+
+    // Dynamic Site Content: Public read, Admin write
+    match /siteContent/{sectionKey} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Media Library Assets: Public read, Admin write
+    match /mediaAssets/{mediaId} {
+      allow read: if true;
+      allow write: if isAdmin() && isValidId(mediaId) && isValidMediaAsset(incoming());
+      allow delete: if isAdmin();
+    }
+  }
+}

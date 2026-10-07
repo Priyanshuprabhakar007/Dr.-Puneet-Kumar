@@ -1,0 +1,218 @@
+{
+  "entities": {
+    "appointment": {
+      "title": "Appointment",
+      "description": "Patient clinic appointment request submission",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the appointment request",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "patientName": {
+          "type": "string",
+          "description": "Full name of the patient",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "phone": {
+          "type": "string",
+          "description": "Patient telephone or mobile number",
+          "minLength": 5,
+          "maxLength": 25
+        },
+        "age": {
+          "type": "string",
+          "description": "Patient age or age range",
+          "maxLength": 15
+        },
+        "gender": {
+          "type": "string",
+          "description": "Patient gender",
+          "maxLength": 25
+        },
+        "concern": {
+          "type": "string",
+          "description": "Primary clinical concern or symptom description",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "preferredDate": {
+          "type": "string",
+          "description": "Requested consultation appointment date",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "preferredTime": {
+          "type": "string",
+          "description": "Requested consultation time slot",
+          "maxLength": 50
+        },
+        "message": {
+          "type": "string",
+          "description": "Optional patient notes or message",
+          "maxLength": 1000
+        },
+        "submittedAt": {
+          "type": "string",
+          "description": "ISO timestamp of submission",
+          "maxLength": 60
+        },
+        "status": {
+          "type": "string",
+          "description": "Appointment processing status",
+          "enum": ["New", "Confirmed", "Completed", "Cancelled"]
+        },
+        "notes": {
+          "type": "string",
+          "description": "Internal clinic staff notes",
+          "maxLength": 1000
+        }
+      },
+      "required": ["patientName", "phone", "concern", "preferredDate", "status"]
+    },
+    "contactLead": {
+      "title": "ContactLead",
+      "description": "General inquiry or contact message from clinic website",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the contact inquiry",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Inquirer full name",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "phone": {
+          "type": "string",
+          "description": "Inquirer telephone number",
+          "minLength": 5,
+          "maxLength": 25
+        },
+        "email": {
+          "type": "string",
+          "description": "Optional email address",
+          "maxLength": 120
+        },
+        "subject": {
+          "type": "string",
+          "description": "Inquiry subject",
+          "maxLength": 150
+        },
+        "message": {
+          "type": "string",
+          "description": "Message or inquiry content",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "submittedAt": {
+          "type": "string",
+          "description": "ISO timestamp of submission",
+          "maxLength": 60
+        },
+        "status": {
+          "type": "string",
+          "description": "Inquiry status",
+          "enum": ["New", "Contacted", "Resolved", "Archived"]
+        },
+        "notes": {
+          "type": "string",
+          "description": "Internal staff notes",
+          "maxLength": 1000
+        }
+      },
+      "required": ["name", "phone", "message", "status"]
+    },
+    "siteSection": {
+      "title": "SiteSection",
+      "description": "Dynamic clinic website configuration or content section",
+      "type": "object",
+      "properties": {
+        "sectionKey": {
+          "type": "string",
+          "description": "Unique section key (e.g. hero, settings, doctorProfile)",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "ISO timestamp of last update",
+          "maxLength": 60
+        }
+      },
+      "required": ["sectionKey"]
+    },
+    "mediaAsset": {
+      "title": "MediaAsset",
+      "description": "Media library asset item",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for media asset",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Media asset display title",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "url": {
+          "type": "string",
+          "description": "Media asset URL",
+          "minLength": 5,
+          "maxLength": 1000
+        },
+        "category": {
+          "type": "string",
+          "description": "Media gallery category",
+          "maxLength": 60
+        },
+        "altText": {
+          "type": "string",
+          "description": "Descriptive alt text for accessibility",
+          "maxLength": 250
+        },
+        "size": {
+          "type": "string",
+          "description": "Human readable file size",
+          "maxLength": 30
+        },
+        "uploadedAt": {
+          "type": "string",
+          "description": "Date of upload",
+          "maxLength": 50
+        }
+      },
+      "required": ["name", "url"]
+    }
+  },
+  "firestore": {
+    "/appointments/{appointmentId}": {
+      "schema": "appointment",
+      "description": "Patient appointment booking requests"
+    },
+    "/contactLeads/{leadId}": {
+      "schema": "contactLead",
+      "description": "Contact messages and inquiries"
+    },
+    "/siteContent/{sectionKey}": {
+      "schema": "siteSection",
+      "description": "Clinic website dynamic sections and configuration"
+    },
+    "/mediaAssets/{mediaId}": {
+      "schema": "mediaAsset",
+      "description": "Clinic photo and media library items"
+    }
+  }
+}

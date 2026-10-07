@@ -1127,9 +1127,9 @@ A unique and dangerous characteristic of Dengue is that the **critical phase beg
       'High BP Doctor in Mohali',
       'Fever Specialist in Mohali',
       'Internal Medicine Doctor Tricity',
-      'Best Doctor for Diabetes in Mohali'
+      'Internal Medicine Specialist Mohali'
     ],
-    canonicalUrl: 'https://drpuneetkumar.com',
+    canonicalUrl: '',
     ogImage: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1200&auto=format&fit=crop',
     localKeywords: [
       'Physician in Mohali Sector 71',

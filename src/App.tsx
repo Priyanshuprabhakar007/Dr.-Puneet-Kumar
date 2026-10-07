@@ -26,6 +26,7 @@ import { BookAppointmentPage } from './pages/BookAppointmentPage';
 import { PrivacyPolicyPage, TermsPage, MedicalDisclaimerPage } from './pages/LegalPages';
 import { AdminPage } from './pages/AdminPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+import { getSeoForPath } from './utils/seo';
 
 function AppContent() {
   const { currentPath, data, navigate } = useSite();
@@ -50,87 +51,128 @@ function AppContent() {
   }, [navigate]);
 
   useEffect(() => {
-    let title = data.seo?.siteTitle || `${data.doctorProfile?.name || 'Dr. Puneet Kumar'} | ${data.doctorProfile?.designation || 'Senior Physician'}`;
-    let description = data.seo?.metaDescription || data.doctorProfile?.shortBio || '';
+    const origin = window.location.origin;
+    const seo = getSeoForPath(currentPath, data, origin);
 
-    if (currentPath === '/about') {
-      title = `About ${data.doctorProfile?.name || 'Dr. Puneet Kumar'} | Qualifications & Medical Career`;
-    } else if (currentPath === '/treatments') {
-      title = `Treatments & Medical Specialties | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'}`;
-    } else if (currentPath.startsWith('/treatments/')) {
-      const slug = currentPath.replace('/treatments/', '');
-      const item = data.treatments?.find((t) => t.slug === slug);
-      if (item) {
-        title = `${item.title} Specialist Care | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'}`;
-        description = item.shortDescription;
+    document.title = seo.title;
+
+    // Helper to safely set meta tag without duplication
+    const setMetaTag = (attrName: string, attrVal: string, content: string) => {
+      let el = document.querySelector(`meta[${attrName}="${attrVal}"]`);
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attrName, attrVal);
+        document.head.appendChild(el);
       }
-    } else if (currentPath === '/diabetes-care') {
-      title = `Comprehensive Diabetes Care & Sugar Reversal | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'}`;
-      description = `Personalized diabetes protocols, continuous glucose monitoring (CGM), insulin titration, and complication screening in Mohali.`;
-    } else if (currentPath === '/patient-resources') {
-      title = `Patient Education & Health Resources | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'}`;
-    } else if (currentPath === '/videos') {
-      title = `Medical Video Guidance & Patient FAQs | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'}`;
-    } else if (currentPath === '/blog') {
-      title = `Health & Diabetes Blog Articles | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'}`;
-    } else if (currentPath.startsWith('/blog/')) {
-      const slug = currentPath.replace('/blog/', '');
-      const blog = data.blogs?.find((b) => b.slug === slug);
-      if (blog) {
-        title = `${blog.title} | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'}`;
-        description = blog.excerpt;
+      el.setAttribute('content', content);
+    };
+
+    // Helper to set canonical tag
+    const setCanonicalTag = (href: string) => {
+      let el = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+      if (!el) {
+        el = document.createElement('link');
+        el.setAttribute('rel', 'canonical');
+        document.head.appendChild(el);
       }
-    } else if (currentPath === '/testimonials') {
-      title = `Patient Reviews & Verified Testimonials | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'}`;
-    } else if (currentPath === '/contact') {
-      title = `Contact Clinic & Timings | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'} Mohali`;
-    } else if (currentPath === '/book-appointment') {
-      title = `Book Doctor Appointment | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'} Senior Physician`;
-    } else if (currentPath === '/admin' || currentPath === '/admin/') {
-      title = `Admin Management Portal | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'} Clinic`;
-    }
+      el.setAttribute('href', href);
+    };
 
-    document.title = title;
+    setMetaTag('name', 'description', seo.description);
+    setMetaTag('name', 'robots', seo.robots);
+    setCanonicalTag(seo.canonicalUrl);
 
-    // Update meta description
-    let metaDescEl = document.querySelector('meta[name="description"]');
-    if (!metaDescEl) {
-      metaDescEl = document.createElement('meta');
-      metaDescEl.setAttribute('name', 'description');
-      document.head.appendChild(metaDescEl);
-    }
-    metaDescEl.setAttribute('content', description);
+    setMetaTag('property', 'og:site_name', 'Dr. Puneet Kumar Clinic');
+    setMetaTag('property', 'og:title', seo.title);
+    setMetaTag('property', 'og:description', seo.description);
+    setMetaTag('property', 'og:url', seo.canonicalUrl);
+    setMetaTag('property', 'og:type', seo.ogType);
+    setMetaTag('property', 'og:image', seo.ogImage);
+
+    setMetaTag('name', 'twitter:card', seo.twitterCard);
+    setMetaTag('name', 'twitter:title', seo.title);
+    setMetaTag('name', 'twitter:description', seo.description);
+    setMetaTag('name', 'twitter:image', seo.ogImage);
 
     // Schema.org Physician Structured Data
-    const schemaId = 'physician-structured-data';
-    let scriptEl = document.getElementById(schemaId) as HTMLScriptElement | null;
-    if (!scriptEl) {
-      scriptEl = document.createElement('script');
-      scriptEl.id = schemaId;
-      scriptEl.type = 'application/ld+json';
-      document.head.appendChild(scriptEl);
+    const physicianSchemaId = 'physician-structured-data';
+    let physicianScript = document.getElementById(physicianSchemaId) as HTMLScriptElement | null;
+    if (!physicianScript) {
+      physicianScript = document.createElement('script');
+      physicianScript.id = physicianSchemaId;
+      physicianScript.type = 'application/ld+json';
+      document.head.appendChild(physicianScript);
     }
 
-    const physicianSchema = {
+    const defaultImage = `${origin}/aggarwal-clinic-logo.png`;
+    const physicianSchema: any = {
       '@context': 'https://schema.org',
       '@type': 'Physician',
       name: data.doctorProfile?.name || 'Dr. Puneet Kumar',
-      description: data.doctorProfile?.shortBio || '',
+      description: 'Senior Physician & Diabetes Specialist in Mohali',
       medicalSpecialty: ['GeneralPractice', 'Endocrine', 'InternalMedicine'],
-      address: {
-        '@type': 'PostalAddress',
-        streetAddress: data.settings?.primaryAddress || '',
-        addressLocality: data.settings?.city || '',
-        addressRegion: data.settings?.state || '',
-        addressCountry: 'IN'
-      },
-      telephone: data.settings?.primaryPhone || '',
-      priceRange: '₹₹',
-      openingHours: data.settings?.consultationTimings || '',
-      image: data.doctorProfile?.photoUrl || ''
+      url: `${origin}/`,
+      image: defaultImage
     };
 
-    scriptEl.textContent = JSON.stringify(physicianSchema);
+    if (data.settings?.primaryPhone) {
+      physicianSchema.telephone = data.settings.primaryPhone;
+    }
+
+    if (data.settings?.primaryAddress) {
+      physicianSchema.address = {
+        '@type': 'PostalAddress',
+        streetAddress: data.settings.primaryAddress,
+        addressLocality: data.settings.city || 'Mohali',
+        addressRegion: data.settings.state || 'Punjab',
+        addressCountry: 'IN'
+      };
+    }
+
+    physicianScript.textContent = JSON.stringify(physicianSchema);
+
+    // Schema.org Breadcrumbs
+    const breadcrumbsSchemaId = 'breadcrumbs-structured-data';
+    let breadcrumbsScript = document.getElementById(breadcrumbsSchemaId) as HTMLScriptElement | null;
+    if (seo.breadcrumbs && seo.breadcrumbs.length > 0) {
+      if (!breadcrumbsScript) {
+        breadcrumbsScript = document.createElement('script');
+        breadcrumbsScript.id = breadcrumbsSchemaId;
+        breadcrumbsScript.type = 'application/ld+json';
+        document.head.appendChild(breadcrumbsScript);
+      }
+      const breadcrumbList = {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: seo.breadcrumbs.map((b, idx) => ({
+          '@type': 'ListItem',
+          position: idx + 1,
+          name: b.name,
+          item: b.url
+        }))
+      };
+      breadcrumbsScript.textContent = JSON.stringify(breadcrumbList);
+    } else if (breadcrumbsScript) {
+      breadcrumbsScript.remove();
+    }
+
+    // Schema.org Page Entity Structured Data (BlogPosting / MedicalWebPage)
+    const entitySchemaId = 'page-entity-structured-data';
+    let entityScript = document.getElementById(entitySchemaId) as HTMLScriptElement | null;
+    const oldBlogScript = document.getElementById('blog-structured-data');
+    if (oldBlogScript) oldBlogScript.remove();
+
+    if (seo.schemaJson) {
+      if (!entityScript) {
+        entityScript = document.createElement('script');
+        entityScript.id = entitySchemaId;
+        entityScript.type = 'application/ld+json';
+        document.head.appendChild(entityScript);
+      }
+      entityScript.textContent = JSON.stringify(seo.schemaJson);
+    } else if (entityScript) {
+      entityScript.remove();
+    }
   }, [currentPath, data]);
 
   // Route Dispatcher

@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
+import fs from 'fs';
 import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import {
@@ -17,10 +18,22 @@ import {
   initializeDatabase
 } from './src/db/storage';
 import { syncSectionToFirestore, getServerFirestore } from './src/db/firebaseServer';
+import { getPublicOrigin, getSeoForPath, buildInjectedHtml, escapeHtml, formatW3CDate } from './src/utils/seo';
 
 async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT || 3000);
+
+  // Helper to reliably resolve the public origin without hardcoding any specific domain
+  function getRequestOrigin(req: Request): string {
+    const protoHeader = req.headers['x-forwarded-proto'];
+    const proto = (typeof protoHeader === 'string' ? protoHeader.split(',')[0].trim() : '') || req.protocol || (req.secure ? 'https' : 'http');
+    return getPublicOrigin(
+      process.env.PUBLIC_SITE_URL,
+      req.get('host'),
+      proto
+    );
+  }
 
   // Configure Express for proxy (GoDaddy / reverse proxy)
   app.set('trust proxy', 1);
@@ -59,9 +72,10 @@ async function startServer() {
   app.use(express.json({ limit: '15mb' }));
   app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
-  // Request logger
+  // Request logger & API indexing protection
   app.use((req, res, next) => {
     if (req.url.startsWith('/api')) {
+      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
       console.log(`[API] ${req.method} ${req.url}`);
     }
     next();
@@ -567,7 +581,8 @@ async function startServer() {
 
   app.get('/sitemap.xml', (req, res) => {
     const db = getDatabase();
-    const baseUrl = 'https://drpuneetkumar.com';
+    const origin = getRequestOrigin(req);
+
     const staticPages = [
       '',
       '/about',
@@ -578,35 +593,50 @@ async function startServer() {
       '/blog',
       '/testimonials',
       '/contact',
-      '/book-appointment'
+      '/book-appointment',
+      '/privacy-policy',
+      '/terms',
+      '/medical-disclaimer'
     ];
 
-    const treatmentPages = db.treatments.map((t) => `/treatments/${t.slug}`);
-    const blogPages = db.blogs.map((b) => `/blog/${b.slug}`);
+    const treatmentPages = (db.treatments || [])
+      .filter((t) => t.published !== false)
+      .map((t) => ({ url: `/treatments/${t.slug}`, lastmod: '' }));
 
-    const allUrls = [...staticPages, ...treatmentPages, ...blogPages];
+    const blogPages = (db.blogs || [])
+      .filter((b) => b.published !== false && b.isPublished !== false)
+      .map((b) => ({
+        url: `/blog/${b.slug}`,
+        lastmod: formatW3CDate(b.publishedAt || b.publishDate) || ''
+      }));
+
+    const allPages = [
+      ...staticPages.map((url) => ({ url, lastmod: '' })),
+      ...treatmentPages,
+      ...blogPages
+    ];
 
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${allUrls
+${allPages
   .map(
-    (url) => `  <url>
-    <loc>${baseUrl}${url}</loc>
-    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>
+    (page) => `  <url>
+    <loc>${escapeHtml(origin + page.url)}</loc>${page.lastmod ? `\n    <lastmod>${escapeHtml(page.lastmod)}</lastmod>` : ''}
     <changefreq>weekly</changefreq>
-    <priority>${url === '' ? '1.0' : url.startsWith('/treatments') || url === '/diabetes-care' ? '0.9' : '0.8'}</priority>
+    <priority>${page.url === '' ? '1.0' : page.url.startsWith('/treatments') || page.url === '/diabetes-care' ? '0.9' : '0.8'}</priority>
   </url>`
   )
   .join('\n')}
 </urlset>`;
 
-    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.send(xml);
   });
 
   app.get('/robots.txt', (req, res) => {
-    res.setHeader('Content-Type', 'text/plain');
-    res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\n\nSitemap: https://drpuneetkumar.com/sitemap.xml`);
+    const origin = getRequestOrigin(req);
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${origin}/sitemap.xml\n`);
   });
 
   if (process.env.NODE_ENV !== 'production') {
@@ -614,12 +644,66 @@ ${allUrls
       server: { middlewareMode: true },
       appType: 'spa',
     });
+
+    // Development HTML SEO metadata injection middleware
+    app.use(async (req, res, next) => {
+      if (req.method !== 'GET' || req.path.startsWith('/api') || req.path.includes('.')) {
+        return next();
+      }
+
+      try {
+        const indexHtmlPath = path.join(process.cwd(), 'index.html');
+        if (!fs.existsSync(indexHtmlPath)) return next();
+
+        const rawIndexHtml = fs.readFileSync(indexHtmlPath, 'utf-8');
+        const transformedHtml = await vite.transformIndexHtml(req.originalUrl || req.url, rawIndexHtml);
+        const db = await getDatabaseAsync();
+        const origin = getRequestOrigin(req);
+        const seo = getSeoForPath(req.path, db, origin);
+
+        if (seo.robots.includes('noindex') || req.path === '/admin' || req.path === '/admin/') {
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+        }
+
+        const html = buildInjectedHtml(transformedHtml, seo, db, origin);
+        res.status(seo.status).send(html);
+      } catch (err) {
+        next(err);
+      }
+    });
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+    const indexHtmlPath = path.join(distPath, 'index.html');
+    let cachedIndexHtml = '';
+
+    app.use(express.static(distPath, { index: false }));
+
+    app.get('*', async (req, res, next) => {
+      if (req.path.startsWith('/api') || req.path.includes('.')) {
+        return next();
+      }
+
+      try {
+        if (!cachedIndexHtml) {
+          cachedIndexHtml = fs.readFileSync(indexHtmlPath, 'utf-8');
+        }
+
+        const db = await getDatabaseAsync();
+        const origin = getRequestOrigin(req);
+        const seo = getSeoForPath(req.path, db, origin);
+
+        if (seo.robots.includes('noindex') || req.path === '/admin' || req.path === '/admin/') {
+          res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+        }
+
+        const html = buildInjectedHtml(cachedIndexHtml, seo, db, origin);
+        res.status(seo.status).send(html);
+      } catch (err) {
+        console.error('Error serving production HTML with SEO:', err);
+        res.status(500).send('Internal Server Error');
+      }
     });
   }
 

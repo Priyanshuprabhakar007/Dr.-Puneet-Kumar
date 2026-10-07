@@ -126,27 +126,32 @@ export async function loadFullDataFromFirestore(): Promise<any> {
   const db = getServerFirestore();
   if (!db) return null;
 
-  const firestoreData: any = {};
-  const contentSnap = await db.collection('siteContent').get();
-  contentSnap.forEach((doc: any) => {
-    const docData = doc.data();
-    if (docData && docData.sectionKey && docData.data) {
-      firestoreData[docData.sectionKey] = docData.data;
-    }
-  });
+  try {
+    const firestoreData: any = {};
+    const contentSnap = await db.collection('siteContent').get();
+    contentSnap.forEach((doc: any) => {
+      const docData = doc.data();
+      if (docData && docData.sectionKey && docData.data) {
+        firestoreData[docData.sectionKey] = docData.data;
+      }
+    });
 
-  const aptSnap = await db.collection('appointments').get();
-  const appointments: any[] = [];
-  aptSnap.forEach((doc: any) => appointments.push(doc.data()));
-  appointments.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
-  firestoreData.appointments = appointments;
+    const aptSnap = await db.collection('appointments').get();
+    const appointments: any[] = [];
+    aptSnap.forEach((doc: any) => appointments.push(doc.data()));
+    appointments.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+    firestoreData.appointments = appointments;
 
-  const leadsSnap = await db.collection('contactLeads').get();
-  const leads: any[] = [];
-  leadsSnap.forEach((doc: any) => leads.push(doc.data()));
-  leads.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
-  firestoreData.contactLeads = leads;
+    const leadsSnap = await db.collection('contactLeads').get();
+    const leads: any[] = [];
+    leadsSnap.forEach((doc: any) => leads.push(doc.data()));
+    leads.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+    firestoreData.contactLeads = leads;
 
-  if (Object.keys(firestoreData).length === 0) return null;
-  return firestoreData;
+    if (Object.keys(firestoreData).length === 0) return null;
+    return firestoreData;
+  } catch (err) {
+    console.warn('[Firebase Admin] Failed to load data from Firestore due to permission or connection error (falling back to initial data):', err);
+    return null;
+  }
 }

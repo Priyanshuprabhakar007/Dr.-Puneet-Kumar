@@ -36,10 +36,7 @@ export async function getDatabaseAsync(forceRefresh = false): Promise<AppData> {
       return cachedData!;
     }
   } catch (err) {
-    console.error('[Storage] Error during async hydration from Firestore:', err);
-    if (process.env.NODE_ENV === 'production') {
-      throw err;
-    }
+    console.warn('[Storage] Warning during async hydration from Firestore (falling back to initial data):', err);
   }
 
   if (cachedData && !forceRefresh) return cachedData;
@@ -80,10 +77,7 @@ export async function initializeDatabase(): Promise<void> {
       getDatabase();
     }
   } catch (err) {
-    console.error('[Storage] Critical error during database initialization:', err);
-    if (process.env.NODE_ENV === 'production') {
-      throw err;
-    }
+    console.warn('[Storage] Warning during database initialization (falling back to initial data):', err);
     getDatabase();
   }
 }

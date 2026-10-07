@@ -48,6 +48,7 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
 
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setBookingError('');
 
     if (!bookingForm.patientName.trim()) {
@@ -313,10 +314,13 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
                   )}
 
                   <div>
-                    <label className="block text-slate-300 font-medium mb-1">Patient Name *</label>
+                    <label htmlFor="detail-patientName" className="block text-slate-300 font-medium mb-1">Patient Name *</label>
                     <input
+                      id="detail-patientName"
+                      name="patientName"
                       type="text"
                       required
+                      autoComplete="name"
                       placeholder="e.g. Navneet Sharma"
                       value={bookingForm.patientName}
                       onChange={(e) =>
@@ -327,10 +331,14 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 font-medium mb-1">Phone Number *</label>
+                    <label htmlFor="detail-phone" className="block text-slate-300 font-medium mb-1">Phone Number *</label>
                     <input
+                      id="detail-phone"
+                      name="phone"
                       type="tel"
                       required
+                      autoComplete="tel"
+                      inputMode="tel"
                       placeholder="e.g. 9876543210"
                       value={bookingForm.phone}
                       onChange={(e) =>
@@ -342,9 +350,14 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
 
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-slate-300 font-medium mb-1">Age</label>
+                      <label htmlFor="detail-age" className="block text-slate-300 font-medium mb-1">Age</label>
                       <input
+                        id="detail-age"
+                        name="age"
                         type="number"
+                        min="1"
+                        max="120"
+                        inputMode="numeric"
                         placeholder="Age"
                         value={bookingForm.age}
                         onChange={(e) =>
@@ -354,10 +367,13 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
                       />
                     </div>
                     <div>
-                      <label className="block text-slate-300 font-medium mb-1">Date *</label>
+                      <label htmlFor="detail-preferredDate" className="block text-slate-300 font-medium mb-1">Date *</label>
                       <input
+                        id="detail-preferredDate"
+                        name="preferredDate"
                         type="date"
                         required
+                        min={new Date().toISOString().split('T')[0]}
                         value={bookingForm.preferredDate}
                         onChange={(e) =>
                           setBookingForm({ ...bookingForm, preferredDate: e.target.value })
@@ -368,8 +384,10 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
                   </div>
 
                   <div>
-                    <label className="block text-slate-300 font-medium mb-1">Preferred Time</label>
+                    <label htmlFor="detail-preferredTime" className="block text-slate-300 font-medium mb-1">Preferred Time</label>
                     <select
+                      id="detail-preferredTime"
+                      name="preferredTime"
                       value={bookingForm.preferredTime}
                       onChange={(e) =>
                         setBookingForm({ ...bookingForm, preferredTime: e.target.value })

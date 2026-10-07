@@ -29,6 +29,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 
 function AppContent() {
   const { currentPath, data, navigate } = useSite();
+  const shouldReduceMotion = useReducedMotion();
 
   // Scroll to top upon route change
   useEffect(() => {
@@ -85,7 +86,7 @@ function AppContent() {
       title = `Contact Clinic & Timings | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'} Mohali`;
     } else if (currentPath === '/book-appointment') {
       title = `Book Doctor Appointment | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'} Senior Physician`;
-    } else if (currentPath === '/admin' || currentPath === '/admin/' || currentPath.startsWith('/admin/')) {
+    } else if (currentPath === '/admin' || currentPath === '/admin/') {
       title = `Admin Management Portal | ${data.doctorProfile?.name || 'Dr. Puneet Kumar'} Clinic`;
     }
 
@@ -135,7 +136,7 @@ function AppContent() {
   // Route Dispatcher
   const renderRoute = () => {
     // Admin Route (dedicated dashboard layout)
-    if (currentPath === '/admin' || currentPath === '/admin/' || currentPath.startsWith('/admin/')) {
+    if (currentPath === '/admin' || currentPath === '/admin/') {
       return <AdminPage />;
     }
 
@@ -175,8 +176,6 @@ function AppContent() {
     } else {
       pageComponent = <NotFoundPage />;
     }
-
-    const shouldReduceMotion = useReducedMotion();
 
     return (
       <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-600 selection:text-white">

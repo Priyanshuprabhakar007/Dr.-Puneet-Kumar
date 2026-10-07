@@ -57,20 +57,36 @@ async function startServer() {
     }
 
     try {
-      const parsed = new URL(process.env.PUBLIC_SITE_URL!);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        throw new Error(`Invalid protocol "${parsed.protocol}". Only http: and https: are allowed.`);
+      const rawUrl = process.env.PUBLIC_SITE_URL!.trim();
+      const parsed = new URL(rawUrl);
+
+      if (parsed.protocol !== 'https:') {
+        throw new Error(`Production PUBLIC_SITE_URL must use https: protocol, received "${parsed.protocol}"`);
       }
-      process.env.PUBLIC_SITE_URL = `${parsed.protocol}//${parsed.host}${parsed.pathname === '/' ? '' : parsed.pathname}`.replace(/\/+$/, '');
+      if (parsed.username || parsed.password) {
+        throw new Error('Production PUBLIC_SITE_URL must not contain authentication credentials.');
+      }
+      if (parsed.pathname !== '/' && parsed.pathname !== '') {
+        throw new Error(`Production PUBLIC_SITE_URL must represent root domain origin without subpath, received "${parsed.pathname}"`);
+      }
+      if (parsed.search) {
+        throw new Error('Production PUBLIC_SITE_URL must not contain query parameters.');
+      }
+      if (parsed.hash) {
+        throw new Error('Production PUBLIC_SITE_URL must not contain URL fragments / hash.');
+      }
+
+      // Normalize to https://hostname[:port] without trailing slash
+      process.env.PUBLIC_SITE_URL = `${parsed.protocol}//${parsed.host}`;
     } catch (err: any) {
-      console.error(`[Critical Configuration Error] Malformed PUBLIC_SITE_URL ("${process.env.PUBLIC_SITE_URL}"): ${err.message}`);
+      console.error(`[Critical Configuration Error] Malformed or non-compliant PUBLIC_SITE_URL ("${process.env.PUBLIC_SITE_URL}"): ${err.message}`);
       process.exit(1);
     }
   } else if (process.env.PUBLIC_SITE_URL && process.env.PUBLIC_SITE_URL.trim()) {
     try {
       const parsed = new URL(process.env.PUBLIC_SITE_URL.trim());
       if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
-        process.env.PUBLIC_SITE_URL = `${parsed.protocol}//${parsed.host}${parsed.pathname === '/' ? '' : parsed.pathname}`.replace(/\/+$/, '');
+        process.env.PUBLIC_SITE_URL = `${parsed.protocol}//${parsed.host}`;
       } else {
         process.env.PUBLIC_SITE_URL = '';
       }
@@ -82,25 +98,30 @@ async function startServer() {
   // Initialize and hydrate database from Firestore on startup
   await initializeDatabase();
 
-  // Security headers
+  // Production Security Headers
   app.disable('x-powered-by');
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
-    res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), payment=(), usb=(), display-capture=()');
+    res.setHeader(
+      'Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://images.unsplash.com https://img.youtube.com; frame-src 'self' https://www.google.com https://maps.google.com https://www.youtube.com https://www.youtube-nocookie.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self';"
+    );
     next();
   });
 
-  app.use(express.json({ limit: '15mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+  // Strict Request Body Limits (Protection against oversized payload DoS)
+  app.use(express.json({ limit: '1mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
-  // Request logger & API indexing protection
-  app.use((req, res, next) => {
-    if (req.url.startsWith('/api')) {
-      res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-      console.log(`[API] ${req.method} ${req.url}`);
-    }
+  // Strict API Caching Policy & Robots Protection
+  app.use('/api', (req, res, next) => {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
     next();
   });
 
@@ -166,18 +187,30 @@ async function startServer() {
     next();
   };
 
-  // --- Rate Limiting Store ---
+  // --- Rate Limiting Store with Automatic Periodic Cleanup ---
   const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+
+  // Periodically sweep expired rate limit records every 5 minutes to prevent memory leaks
+  const rateLimitCleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [key, record] of rateLimitStore.entries()) {
+      if (now > record.resetTime) {
+        rateLimitStore.delete(key);
+      }
+    }
+  }, 5 * 60 * 1000);
+  rateLimitCleanupInterval.unref();
 
   function rateLimiter(limit: number, windowMs: number) {
     return (req: Request, res: Response, next: NextFunction) => {
       const ip = req.ip || req.socket.remoteAddress || 'unknown';
+      const key = `${req.baseUrl || ''}${req.path}:${ip}`;
       const now = Date.now();
-      let record = rateLimitStore.get(ip);
+      let record = rateLimitStore.get(key);
 
       if (!record || now > record.resetTime) {
         record = { count: 1, resetTime: now + windowMs };
-        rateLimitStore.set(ip, record);
+        rateLimitStore.set(key, record);
         return next();
       }
 
@@ -192,7 +225,11 @@ async function startServer() {
   // --- API Routes ---
 
   app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString(), doctor: 'Dr. Puneet Kumar' });
+    res.json({
+      status: 'ok',
+      application: 'Dr. Puneet Kumar Clinic',
+      timestamp: new Date().toISOString()
+    });
   });
 
   // Admin Login (Rate limited: 5 attempts per 15 minutes)
@@ -232,7 +269,12 @@ async function startServer() {
   });
 
   app.post('/api/admin/logout', (req, res) => {
-    res.clearCookie('admin_session', { path: '/' });
+    res.clearCookie('admin_session', {
+      path: '/',
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict'
+    });
     res.json({ success: true, message: 'Logged out successfully' });
   });
 
@@ -653,13 +695,20 @@ ${allPages
 </urlset>`;
 
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
     res.send(xml);
   });
 
   app.get('/robots.txt', (req, res) => {
     const origin = getRequestOrigin(req);
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=3600, must-revalidate');
     res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\n\nSitemap: ${origin}/sitemap.xml\n`);
+  });
+
+  // Catch unmatched API routes with clean JSON 404
+  app.all('/api/*', (req, res) => {
+    res.status(404).json({ error: 'API endpoint not found' });
   });
 
   if (process.env.NODE_ENV !== 'production') {
@@ -688,6 +737,11 @@ ${allPages
           res.setHeader('X-Robots-Tag', 'noindex, nofollow');
         }
 
+        // Fresh dynamic HTML caching header
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+
         const html = buildInjectedHtml(transformedHtml, seo, db, origin);
         res.status(seo.status).send(html);
       } catch (err) {
@@ -701,7 +755,22 @@ ${allPages
     const indexHtmlPath = path.join(distPath, 'index.html');
     let cachedIndexHtml = '';
 
-    app.use(express.static(distPath, { index: false }));
+    // Production static asset serving with long-lived immutable caching for hashed assets
+    app.use(
+      express.static(distPath, {
+        index: false,
+        setHeaders: (res, filePath) => {
+          const normalizedPath = filePath.replace(/\\/g, '/');
+          if (normalizedPath.includes('/assets/')) {
+            // Content-hashed Vite bundle assets: 1 year immutable
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          } else {
+            // Other static files (e.g. logo, favicon): 1 hour cache
+            res.setHeader('Cache-Control', 'public, max-age=3600');
+          }
+        }
+      })
+    );
 
     app.get('*', async (req, res, next) => {
       if (req.path.startsWith('/api') || req.path.includes('.')) {
@@ -721,14 +790,34 @@ ${allPages
           res.setHeader('X-Robots-Tag', 'noindex, nofollow');
         }
 
+        // Dynamic HTML must remain refreshable on each deployment
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+
         const html = buildInjectedHtml(cachedIndexHtml, seo, db, origin);
         res.status(seo.status).send(html);
       } catch (err) {
-        console.error('Error serving production HTML with SEO:', err);
-        res.status(500).send('Internal Server Error');
+        next(err);
       }
     });
   }
+
+  // Global Error Handler (Production-safe: no stack trace leaks or credential disclosure)
+  app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
+    console.error(`[Server Error] ${req.method} ${req.url} - ${err?.message || 'Internal error'}`);
+
+    if (res.headersSent) {
+      return;
+    }
+
+    if (req.path.startsWith('/api')) {
+      const statusCode = err?.status && Number.isInteger(err.status) ? err.status : 500;
+      return res.status(statusCode).json({ error: 'Internal server error' });
+    }
+
+    res.status(500).send('Internal Server Error');
+  });
 
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`[Dr. Puneet Kumar Clinic Web Server] Running on http://0.0.0.0:${PORT}`);

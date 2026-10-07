@@ -41,6 +41,9 @@ export const HeroSection: React.FC = () => {
         <img 
           src={photoUrl} 
           alt={data.doctorProfile.name}
+          loading="eager"
+          fetchPriority="high"
+          decoding="async"
           className="w-full h-full object-cover object-[75%_35%] sm:object-right lg:object-[85%_center] lg:opacity-80 transition-all duration-1000 brightness-[1.05] contrast-[1.05]"
         />
         {/* Gradients */}

@@ -33,6 +33,8 @@ export const AboutPage: React.FC = () => {
                   <img
                     src={doctorProfile.photoUrl}
                     alt={doctorProfile.name}
+                    loading="lazy"
+                    decoding="async"
                     className="w-full h-full object-cover object-top"
                   />
                 </div>

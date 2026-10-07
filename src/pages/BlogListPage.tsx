@@ -92,6 +92,7 @@ export const BlogListPage: React.FC = () => {
                     alt={blog.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     loading="lazy"
+                    decoding="async"
                   />
                   <span className="absolute top-3 left-3 bg-blue-700 text-white text-[11px] font-semibold px-2.5 py-1 rounded-2xl shadow-xs">
                     {blog.category}

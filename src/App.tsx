@@ -10,22 +10,26 @@ import { MobileActionBar } from './components/common/MobileActionBar';
 import { AppointmentModal } from './components/common/AppointmentModal';
 import { Toast } from './components/common/Toast';
 
-// Pages
+// Pages (Core synchronous routes)
 import { HomePage } from './pages/HomePage';
 import { AboutPage } from './pages/AboutPage';
-import { TreatmentsPage } from './pages/TreatmentsPage';
-import { TreatmentDetailPage } from './pages/TreatmentDetailPage';
-import { DiabetesCarePage } from './pages/DiabetesCarePage';
-import { PatientResourcesPage } from './pages/PatientResourcesPage';
-import { VideosPage } from './pages/VideosPage';
-import { BlogListPage } from './pages/BlogListPage';
-import { BlogPostPage } from './pages/BlogPostPage';
-import { TestimonialsPage } from './pages/TestimonialsPage';
-import { ContactPage } from './pages/ContactPage';
-import { BookAppointmentPage } from './pages/BookAppointmentPage';
-import { PrivacyPolicyPage, TermsPage, MedicalDisclaimerPage } from './pages/LegalPages';
-import { AdminPage } from './pages/AdminPage';
 import { NotFoundPage } from './pages/NotFoundPage';
+
+// Lazy-loaded secondary & administrative routes for optimal initial bundle performance
+const TreatmentsPage = React.lazy(() => import('./pages/TreatmentsPage').then(m => ({ default: m.TreatmentsPage })));
+const TreatmentDetailPage = React.lazy(() => import('./pages/TreatmentDetailPage').then(m => ({ default: m.TreatmentDetailPage })));
+const DiabetesCarePage = React.lazy(() => import('./pages/DiabetesCarePage').then(m => ({ default: m.DiabetesCarePage })));
+const PatientResourcesPage = React.lazy(() => import('./pages/PatientResourcesPage').then(m => ({ default: m.PatientResourcesPage })));
+const VideosPage = React.lazy(() => import('./pages/VideosPage').then(m => ({ default: m.VideosPage })));
+const BlogListPage = React.lazy(() => import('./pages/BlogListPage').then(m => ({ default: m.BlogListPage })));
+const BlogPostPage = React.lazy(() => import('./pages/BlogPostPage').then(m => ({ default: m.BlogPostPage })));
+const TestimonialsPage = React.lazy(() => import('./pages/TestimonialsPage').then(m => ({ default: m.TestimonialsPage })));
+const ContactPage = React.lazy(() => import('./pages/ContactPage').then(m => ({ default: m.ContactPage })));
+const BookAppointmentPage = React.lazy(() => import('./pages/BookAppointmentPage').then(m => ({ default: m.BookAppointmentPage })));
+const PrivacyPolicyPage = React.lazy(() => import('./pages/LegalPages').then(m => ({ default: m.PrivacyPolicyPage })));
+const TermsPage = React.lazy(() => import('./pages/LegalPages').then(m => ({ default: m.TermsPage })));
+const MedicalDisclaimerPage = React.lazy(() => import('./pages/LegalPages').then(m => ({ default: m.MedicalDisclaimerPage })));
+const AdminPage = React.lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
 import { getSeoForPath, safeJsonLd } from './utils/seo';
 
 function AppContent() {
@@ -175,7 +179,11 @@ function AppContent() {
   const renderRoute = () => {
     // Admin Route (dedicated dashboard layout)
     if (currentPath === '/admin' || currentPath === '/admin/') {
-      return <AdminPage />;
+      return (
+        <React.Suspense fallback={<div className="min-h-screen bg-slate-900 flex items-center justify-center text-white" aria-label="Loading admin portal"><div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>}>
+          <AdminPage />
+        </React.Suspense>
+      );
     }
 
     // Public Pages
@@ -219,17 +227,19 @@ function AppContent() {
       <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-blue-600 selection:text-white">
         <Header />
         <main className="flex-1 pb-16 md:pb-0 overflow-x-hidden">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentPath}
-              initial={{ opacity: shouldReduceMotion ? 1 : 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: shouldReduceMotion ? 1 : 0 }}
-              transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: 'linear' }}
-            >
-              {pageComponent}
-            </motion.div>
-          </AnimatePresence>
+          <React.Suspense fallback={<div className="min-h-[50vh] flex items-center justify-center py-24" aria-label="Loading page content"><div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>}>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentPath}
+                initial={{ opacity: shouldReduceMotion ? 1 : 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: shouldReduceMotion ? 1 : 0 }}
+                transition={{ duration: shouldReduceMotion ? 0 : 0.2, ease: 'linear' }}
+              >
+                {pageComponent}
+              </motion.div>
+            </AnimatePresence>
+          </React.Suspense>
         </main>
         <Footer />
         <WhatsAppFloat />

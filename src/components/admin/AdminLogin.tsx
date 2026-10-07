@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useSite } from '../../context/SiteContext';
-import { Lock, User, KeyRound, Stethoscope, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Lock, User, KeyRound, Stethoscope, AlertCircle } from 'lucide-react';
 
 export const AdminLogin: React.FC = () => {
   const { loginAdmin, navigate } = useSite();
@@ -18,32 +18,22 @@ export const AdminLogin: React.FC = () => {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
+        credentials: 'include'
       });
 
       const data = await res.json();
-      if (res.ok && data.token) {
-        loginAdmin(data.token);
+      if (res.ok && data.success) {
+        loginAdmin();
         navigate('/admin');
       } else {
-        setError(data.error || 'Invalid credentials');
+        setError(data.error || 'Invalid username or password');
       }
     } catch {
-      // Fallback client check for demonstration
-      if (username === 'admin' && password === 'doctor@puneet2026') {
-        loginAdmin('dr-puneet-secure-token-2026-auth');
-        navigate('/admin');
-      } else {
-        setError('Invalid username or password.');
-      }
+      setError('Connection error. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleFillDemo = () => {
-    setUsername('admin');
-    setPassword('doctor@puneet2026');
   };
 
   return (
@@ -76,7 +66,7 @@ export const AdminLogin: React.FC = () => {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="admin"
+                placeholder="Enter username"
                 className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white text-xs text-slate-900"
               />
             </div>
@@ -106,18 +96,6 @@ export const AdminLogin: React.FC = () => {
             <span>{isLoading ? 'Authenticating...' : 'Sign in to Admin Dashboard'}</span>
           </button>
         </form>
-
-        {/* Demo credentials shortcut */}
-        <div className="pt-4 border-t border-slate-100 text-center space-y-2">
-          <p className="text-[11px] text-slate-400">Doctor/Admin Testing Access:</p>
-          <button
-            type="button"
-            onClick={handleFillDemo}
-            className="text-xs text-blue-700 font-semibold hover:underline"
-          >
-            Fill Default Credentials (admin / doctor@puneet2026)
-          </button>
-        </div>
       </div>
     </div>
   );

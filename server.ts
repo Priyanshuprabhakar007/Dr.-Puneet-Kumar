@@ -1,5 +1,6 @@
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
+import crypto from 'crypto';
 import { createServer as createViteServer } from 'vite';
 import {
   getDatabase,
@@ -19,10 +20,20 @@ import { syncSectionToFirestore, getServerFirestore } from './src/db/firebaseSer
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = Number(process.env.PORT || 3000);
 
   // Initialize and hydrate database from Firestore on startup
   await initializeDatabase();
+
+  // Security headers
+  app.disable('x-powered-by');
+  app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('X-XSS-Protection', '1; mode=block');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+  });
 
   app.use(express.json({ limit: '15mb' }));
   app.use(express.urlencoded({ extended: true, limit: '15mb' }));
@@ -35,22 +46,83 @@ async function startServer() {
     next();
   });
 
-  // Simple token-based admin authentication
+  // --- Authentication & Signed Session Cookies ---
   const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'doctor@puneet2026';
-  const ADMIN_SECRET_TOKEN = 'dr-puneet-secure-token-2026-auth';
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'secure_admin_password_change_me';
+  const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
-  const requireAdmin = (req: Request, res: Response, next: () => void) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  function signCookie(val: string): string {
+    const hmac = crypto.createHmac('sha256', ADMIN_SESSION_SECRET).update(val).digest('base64url');
+    return `${val}.${hmac}`;
+  }
+
+  function verifyCookie(signedVal: string): string | null {
+    if (!signedVal) return null;
+    const parts = signedVal.split('.');
+    if (parts.length !== 2) return null;
+    const [val, sig] = parts;
+    const expectedSig = crypto.createHmac('sha256', ADMIN_SESSION_SECRET).update(val).digest('base64url');
+    if (sig !== expectedSig) return null;
+    return val;
+  }
+
+  function parseCookies(req: Request): Record<string, string> {
+    const list: Record<string, string> = {};
+    const cookieHeader = req.headers.cookie;
+    if (!cookieHeader) return list;
+    cookieHeader.split(';').forEach(cookie => {
+      const parts = cookie.split('=');
+      if (parts.length === 2) {
+        list[parts[0].trim()] = decodeURIComponent(parts[1].trim());
+      }
+    });
+    return list;
+  }
+
+  const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+    const cookies = parseCookies(req);
+    const sessionCookie = cookies['admin_session'];
+    if (!sessionCookie) {
       return res.status(401).json({ error: 'Unauthorized: Admin authentication required' });
     }
-    const token = authHeader.split(' ')[1];
-    if (token !== ADMIN_SECRET_TOKEN) {
-      return res.status(403).json({ error: 'Forbidden: Invalid admin token' });
+    const unsigned = verifyCookie(sessionCookie);
+    if (!unsigned) {
+      return res.status(403).json({ error: 'Forbidden: Invalid session signature' });
     }
-    next();
+    try {
+      const data = JSON.parse(unsigned);
+      if (data.exp < Date.now()) {
+        return res.status(401).json({ error: 'Session expired' });
+      }
+      (req as any).adminUser = data.username;
+      next();
+    } catch {
+      return res.status(403).json({ error: 'Invalid session payload' });
+    }
   };
+
+  // --- Rate Limiting Store ---
+  const rateLimitStore = new Map<string, { count: number; resetTime: number }>();
+
+  function rateLimiter(limit: number, windowMs: number) {
+    return (req: Request, res: Response, next: NextFunction) => {
+      const ip = req.ip || req.socket.remoteAddress || 'unknown';
+      const now = Date.now();
+      let record = rateLimitStore.get(ip);
+
+      if (!record || now > record.resetTime) {
+        record = { count: 1, resetTime: now + windowMs };
+        rateLimitStore.set(ip, record);
+        return next();
+      }
+
+      record.count++;
+      if (record.count > limit) {
+        return res.status(429).json({ error: 'Too many requests, please try again later.' });
+      }
+      next();
+    };
+  }
 
   // --- API Routes ---
 
@@ -59,13 +131,21 @@ async function startServer() {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), doctor: 'Dr. Puneet Kumar' });
   });
 
-  // Admin Login
-  app.post('/api/admin/login', (req, res) => {
+  // Admin Login (Rate limited: 5 attempts per 15 minutes)
+  app.post('/api/admin/login', rateLimiter(5, 15 * 60 * 1000), (req, res) => {
     const { username, password } = req.body;
-    if ((username === ADMIN_USERNAME || username === 'drpuneet') && password === ADMIN_PASSWORD) {
+    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+      const sessionVal = JSON.stringify({ username, exp: Date.now() + 8 * 60 * 60 * 1000 });
+      const signed = signCookie(sessionVal);
+      res.cookie('admin_session', signed, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        path: '/',
+        maxAge: 8 * 60 * 60 * 1000
+      });
       return res.json({
         success: true,
-        token: ADMIN_SECRET_TOKEN,
         user: {
           username: ADMIN_USERNAME,
           role: 'Administrator',
@@ -76,20 +156,26 @@ async function startServer() {
     return res.status(401).json({ error: 'Invalid username or password' });
   });
 
-  // Admin Verify Token
+  // Admin Verify Session
   app.get('/api/admin/verify', requireAdmin, (req, res) => {
-    res.json({ valid: true, user: { username: ADMIN_USERNAME, role: 'Administrator' } });
+    res.json({ valid: true, user: { username: (req as any).adminUser, role: 'Administrator' } });
   });
 
-  // Public: Get all content
+  // Admin Logout
+  app.post('/api/admin/logout', (req, res) => {
+    res.clearCookie('admin_session', { path: '/' });
+    res.json({ success: true, message: 'Logged out successfully' });
+  });
+
+  // Public: Get Sanitized Content (NEVER exposes appointments, contactLeads, or private notes)
   app.get('/api/content', async (req, res) => {
     try {
       const data = await getDatabaseAsync();
-      // Prevent browser caching of dynamic content
+      const { appointments, contactLeads, ...publicContent } = data;
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
-      res.json(data);
+      res.json(publicContent);
     } catch (err) {
       console.error('Error fetching content:', err);
       res.status(500).json({ error: 'Failed to fetch content' });
@@ -119,13 +205,12 @@ async function startServer() {
   });
 
   // Firebase Database Info & Connectivity
-  app.get('/api/firebase/info', (req, res) => {
+  app.get('/api/firebase/info', requireAdmin, (req, res) => {
     try {
       const fsDb = getServerFirestore();
       res.json({
         configured: true,
-        projectId: 'spheric-transit-098sv',
-        databaseId: 'ai-studio-drpuneetkumarsen-05cd4290-e916-4ed9-9b98-9ed263c1c298',
+        databaseId: process.env.FIREBASE_DATABASE_ID || 'ai-studio-drpuneetkumarsen-05cd4290-e916-4ed9-9b98-9ed263c1c298',
         connected: !!fsDb
       });
     } catch {
@@ -139,10 +224,9 @@ async function startServer() {
       const updated = req.body;
       saveDatabase(updated);
       
-      // Sync all major sections to Firestore
       const sections = Object.keys(updated);
       for (const section of sections) {
-        if (Array.isArray(updated[section]) || typeof updated[section] === 'object') {
+        if (section !== 'appointments' && section !== 'contactLeads' && (Array.isArray(updated[section]) || typeof updated[section] === 'object')) {
           await syncSectionToFirestore(section, updated[section]);
         }
       }
@@ -154,33 +238,38 @@ async function startServer() {
     }
   });
 
-  // Public: Create Appointment
-  app.post('/api/appointments', (req, res) => {
+  // Public: Create Appointment (Rate limited: 10 requests per 10 mins + Strict Server Validation)
+  app.post('/api/appointments', rateLimiter(10, 10 * 60 * 1000), (req, res) => {
     try {
-      const { patientName, phone, age, gender, concern, preferredDate, preferredTime, message } = req.body;
+      const { patientName, phone, age, gender, concern, preferredDate, preferredTime, message, status, notes } = req.body;
 
-      if (!patientName || !patientName.trim()) {
-        return res.status(400).json({ error: 'Patient name is required' });
+      // Disallow client-provided admin properties
+      if (status !== undefined || notes !== undefined) {
+        return res.status(400).json({ error: 'Unauthorized payload fields' });
       }
-      if (!phone || !phone.trim()) {
-        return res.status(400).json({ error: 'Phone number is required' });
+
+      if (!patientName || typeof patientName !== 'string' || patientName.trim().length === 0 || patientName.length > 100) {
+        return res.status(400).json({ error: 'Valid patient name is required (max 100 chars)' });
       }
-      if (!preferredDate) {
+      if (!phone || typeof phone !== 'string' || phone.trim().length < 5 || phone.length > 25) {
+        return res.status(400).json({ error: 'Valid phone number is required' });
+      }
+      if (!preferredDate || typeof preferredDate !== 'string' || preferredDate.length > 50) {
         return res.status(400).json({ error: 'Preferred date is required' });
       }
-      if (!concern || !concern.trim()) {
-        return res.status(400).json({ error: 'Medical concern is required' });
+      if (!concern || typeof concern !== 'string' || concern.trim().length === 0 || concern.length > 500) {
+        return res.status(400).json({ error: 'Medical concern is required (max 500 chars)' });
       }
 
       const appointment = addAppointment({
         patientName: patientName.trim(),
         phone: phone.trim(),
-        age: age ? age.toString() : 'Not specified',
-        gender: gender || 'Unspecified',
+        age: age ? String(age).slice(0, 15) : 'Not specified',
+        gender: gender ? String(gender).slice(0, 25) : 'Unspecified',
         concern: concern.trim(),
         preferredDate,
-        preferredTime: preferredTime || 'Flexible',
-        message: message ? message.trim() : ''
+        preferredTime: preferredTime ? String(preferredTime).slice(0, 50) : 'Flexible',
+        message: message ? String(message).trim().slice(0, 1000) : ''
       });
 
       res.status(201).json({
@@ -194,7 +283,7 @@ async function startServer() {
     }
   });
 
-  // Admin: Get Appointments with search, filter, CSV export
+  // Admin: Get Appointments
   app.get('/api/appointments', requireAdmin, async (req, res) => {
     try {
       const db = await getDatabaseAsync();
@@ -216,7 +305,6 @@ async function startServer() {
         );
       }
 
-      // Handle CSV export
       if (exportType === 'csv') {
         const headers = ['ID,Patient Name,Phone,Age,Gender,Concern,Preferred Date,Preferred Time,Status,Submitted At,Notes'];
         const rows = list.map((a) => {
@@ -255,19 +343,33 @@ async function startServer() {
     res.json({ success: true, message: 'Appointment deleted' });
   });
 
-  // Public: Submit Contact Lead
-  app.post('/api/contact-leads', (req, res) => {
+  // Public: Submit Contact Lead (Rate limited)
+  app.post('/api/contact-leads', rateLimiter(10, 10 * 60 * 1000), (req, res) => {
     try {
-      const { name, phone, email, subject, message } = req.body;
-      if (!name || !phone || !message) {
-        return res.status(400).json({ error: 'Name, phone number, and message are required' });
+      const { name, phone, email, subject, message, status, notes } = req.body;
+
+      if (status !== undefined || notes !== undefined) {
+        return res.status(400).json({ error: 'Unauthorized payload fields' });
+      }
+
+      if (!name || typeof name !== 'string' || name.trim().length === 0 || name.length > 100) {
+        return res.status(400).json({ error: 'Name is required' });
+      }
+      if (!phone || typeof phone !== 'string' || phone.trim().length < 5 || phone.length > 25) {
+        return res.status(400).json({ error: 'Phone number is required' });
+      }
+      if (!message || typeof message !== 'string' || message.trim().length === 0 || message.length > 2000) {
+        return res.status(400).json({ error: 'Message is required (max 2000 chars)' });
+      }
+      if (email && (typeof email !== 'string' || email.length > 120)) {
+        return res.status(400).json({ error: 'Invalid email format' });
       }
 
       const lead = addContactLead({
         name: name.trim(),
         phone: phone.trim(),
         email: email ? email.trim() : undefined,
-        subject: subject ? subject.trim() : 'Website General Inquiry',
+        subject: subject ? String(subject).trim().slice(0, 150) : 'Website General Inquiry',
         message: message.trim()
       });
 
@@ -281,13 +383,24 @@ async function startServer() {
     }
   });
 
-  // Testimonials Public Submission Endpoint
-  app.post('/api/testimonials', (req, res) => {
+  // Testimonials Public Submission (Rate limited + Server Validation)
+  app.post('/api/testimonials', rateLimiter(10, 10 * 60 * 1000), (req, res) => {
     try {
-      const { patientName, treatmentCategory, location, rating, review } = req.body;
+      const { patientName, treatmentCategory, location, rating, review, isPublished, order } = req.body;
       
-      if (!patientName || !review) {
-        return res.status(400).json({ error: 'Patient name and review are required' });
+      if (isPublished !== undefined || order !== undefined) {
+        return res.status(400).json({ error: 'Unauthorized payload fields' });
+      }
+
+      if (!patientName || typeof patientName !== 'string' || patientName.trim().length === 0 || patientName.length > 100) {
+        return res.status(400).json({ error: 'Patient name is required' });
+      }
+      if (!review || typeof review !== 'string' || review.trim().length === 0 || review.length > 1000) {
+        return res.status(400).json({ error: 'Review is required (max 1000 chars)' });
+      }
+      const numRating = Number(rating);
+      if (isNaN(numRating) || numRating < 1 || numRating > 5) {
+        return res.status(400).json({ error: 'Rating must be between 1 and 5' });
       }
 
       const db = getDatabase();
@@ -295,19 +408,16 @@ async function startServer() {
       const newTestimonial = {
         id: `test-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
         patientName: patientName.trim(),
-        treatmentCategory: treatmentCategory?.trim() || 'General Consultation',
-        location: location?.trim() || 'Mohali',
-        rating: Number(rating) || 5,
+        treatmentCategory: treatmentCategory ? String(treatmentCategory).trim().slice(0, 60) : 'General Consultation',
+        location: location ? String(location).trim().slice(0, 50) : 'Mohali',
+        rating: numRating,
         review: review.trim(),
-        isPublished: false, // Default to false for moderation
+        isPublished: false, // Server-determined default
         order: db.testimonials.length > 0 ? Math.max(...db.testimonials.map(t => t.order || 0)) + 1 : 1
       };
 
-      // Add to beginning of array
       db.testimonials = [newTestimonial, ...db.testimonials];
       saveDatabase(db);
-      
-      // Sync to Firebase
       syncSectionToFirestore('testimonials', db.testimonials).catch(() => {});
 
       res.status(201).json({
@@ -444,7 +554,7 @@ ${allUrls
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Dr. Puneet Kumar Clinic Web Server] Running on http://localhost:${PORT}`);
+    console.log(`[Dr. Puneet Kumar Clinic Web Server] Running on http://0.0.0.0:${PORT}`);
   });
 }
 

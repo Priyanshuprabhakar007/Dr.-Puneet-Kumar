@@ -1,34 +1,44 @@
-import fs from 'fs';
-import path from 'path';
-import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, Firestore, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore } from 'firebase-admin/firestore';
 
-let firestoreInstance: Firestore | null = null;
+let adminDb: any = null;
 let isInitialized = false;
 
-export function getServerFirestore(): Firestore | null {
+export function getServerFirestore(): any {
   if (isInitialized) {
-    return firestoreInstance;
+    return adminDb;
   }
 
   try {
-    const configPath = path.join(process.cwd(), 'firebase-applet-config.json');
-    if (!fs.existsSync(configPath)) {
-      console.warn('[Firebase] firebase-applet-config.json not found on server.');
+    const projectId = process.env.FIREBASE_PROJECT_ID;
+    const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
+    const privateKey = process.env.FIREBASE_PRIVATE_KEY;
+
+    if (!clientEmail || !privateKey) {
+      // In development / AI Studio without explicit service account keys, Firebase Admin SDK requires service account credentials.
+      // Returning null gracefully avoids 7 PERMISSION_DENIED errors and falls back to initialData cleanly.
       isInitialized = true;
+      console.log('[Firebase Admin] Service account credentials not set. Operating on local seed data (set FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY for production Firestore access).');
       return null;
     }
 
-    const rawConfig = fs.readFileSync(configPath, 'utf-8');
-    const config = JSON.parse(rawConfig);
+    if (!getApps().length) {
+      initializeApp({
+        credential: cert({
+          projectId: projectId || 'spheric-transit-098sv',
+          clientEmail,
+          privateKey: privateKey.replace(/\\n/g, '\n'),
+        }),
+      });
+    }
 
-    const app = !getApps().length ? initializeApp(config) : getApp();
-    firestoreInstance = getFirestore(app, config.firestoreDatabaseId);
+    const databaseId = process.env.FIREBASE_DATABASE_ID || 'ai-studio-drpuneetkumarsen-05cd4290-e916-4ed9-9b98-9ed263c1c298';
+    adminDb = getFirestore(undefined, databaseId);
     isInitialized = true;
-    console.log(`[Firebase Server] Successfully connected to Firestore (Database ID: ${config.firestoreDatabaseId})`);
-    return firestoreInstance;
+    console.log('[Firebase Admin] Successfully initialized Firebase Admin SDK with service account');
+    return adminDb;
   } catch (err) {
-    console.error('[Firebase Server] Failed to initialize Firestore:', err);
+    console.warn('[Firebase Admin] Skipping Firebase Admin initialization:', err);
     isInitialized = true;
     return null;
   }
@@ -37,69 +47,59 @@ export function getServerFirestore(): Firestore | null {
 export async function syncAppointmentToFirestore(appointment: any): Promise<void> {
   const db = getServerFirestore();
   if (!db || !appointment || !appointment.id) return;
-
   try {
-    const docRef = doc(db, 'appointments', appointment.id);
-    await setDoc(docRef, appointment, { merge: true });
-    console.log(`[Firebase Server] Appointment ${appointment.id} synced to Firestore`);
+    await db.collection('appointments').doc(appointment.id).set(appointment, { merge: true });
+    console.log(`[Firebase Admin] Appointment ${appointment.id} synced`);
   } catch (err) {
-    console.warn(`[Firebase Server] Could not sync appointment ${appointment.id}:`, err);
+    console.warn(`[Firebase Admin] Could not sync appointment ${appointment.id}:`, err);
   }
 }
 
 export async function removeAppointmentFromFirestore(id: string): Promise<void> {
   const db = getServerFirestore();
   if (!db || !id) return;
-
   try {
-    const docRef = doc(db, 'appointments', id);
-    await deleteDoc(docRef);
-    console.log(`[Firebase Server] Appointment ${id} deleted from Firestore`);
+    await db.collection('appointments').doc(id).delete();
+    console.log(`[Firebase Admin] Appointment ${id} deleted`);
   } catch (err) {
-    console.warn(`[Firebase Server] Could not delete appointment ${id}:`, err);
+    console.warn(`[Firebase Admin] Could not delete appointment ${id}:`, err);
   }
 }
 
 export async function syncContactLeadToFirestore(lead: any): Promise<void> {
   const db = getServerFirestore();
   if (!db || !lead || !lead.id) return;
-
   try {
-    const docRef = doc(db, 'contactLeads', lead.id);
-    await setDoc(docRef, lead, { merge: true });
-    console.log(`[Firebase Server] Contact lead ${lead.id} synced to Firestore`);
+    await db.collection('contactLeads').doc(lead.id).set(lead, { merge: true });
+    console.log(`[Firebase Admin] Contact lead ${lead.id} synced`);
   } catch (err) {
-    console.warn(`[Firebase Server] Could not sync lead ${lead.id}:`, err);
+    console.warn(`[Firebase Admin] Could not sync lead ${lead.id}:`, err);
   }
 }
 
 export async function removeContactLeadFromFirestore(id: string): Promise<void> {
   const db = getServerFirestore();
   if (!db || !id) return;
-
   try {
-    const docRef = doc(db, 'contactLeads', id);
-    await deleteDoc(docRef);
-    console.log(`[Firebase Server] Lead ${id} deleted from Firestore`);
+    await db.collection('contactLeads').doc(id).delete();
+    console.log(`[Firebase Admin] Lead ${id} deleted`);
   } catch (err) {
-    console.warn(`[Firebase Server] Could not delete lead ${id}:`, err);
+    console.warn(`[Firebase Admin] Could not delete lead ${id}:`, err);
   }
 }
 
 export async function syncSectionToFirestore(sectionKey: string, sectionData: any): Promise<void> {
   const db = getServerFirestore();
   if (!db || !sectionKey) return;
-
   try {
-    const docRef = doc(db, 'siteContent', sectionKey);
-    await setDoc(docRef, {
+    await db.collection('siteContent').doc(sectionKey).set({
       sectionKey,
       data: sectionData,
       updatedAt: new Date().toISOString()
     }, { merge: true });
-    console.log(`[Firebase Server] Section ${sectionKey} synced to Firestore`);
+    console.log(`[Firebase Admin] Section ${sectionKey} synced`);
   } catch (err) {
-    console.warn(`[Firebase Server] Could not sync section ${sectionKey}:`, err);
+    console.warn(`[Firebase Admin] Could not sync section ${sectionKey}:`, err);
   }
 }
 
@@ -108,41 +108,31 @@ export async function loadFullDataFromFirestore(): Promise<any> {
   if (!db) return null;
 
   try {
-    const { collection, getDocs } = await import('firebase/firestore');
-    const querySnapshot = await getDocs(collection(db, 'siteContent'));
     const firestoreData: any = {};
-    
-    querySnapshot.forEach((doc) => {
+    const contentSnap = await db.collection('siteContent').get();
+    contentSnap.forEach((doc: any) => {
       const docData = doc.data();
       if (docData && docData.sectionKey && docData.data) {
         firestoreData[docData.sectionKey] = docData.data;
       }
     });
 
-    // Also load appointments and leads
-    const appointmentsSnapshot = await getDocs(collection(db, 'appointments'));
+    const aptSnap = await db.collection('appointments').get();
     const appointments: any[] = [];
-    appointmentsSnapshot.forEach((doc) => {
-      appointments.push(doc.data());
-    });
-    // Sort appointments by date (newest first)
+    aptSnap.forEach((doc: any) => appointments.push(doc.data()));
     appointments.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
     firestoreData.appointments = appointments;
 
-    const leadsSnapshot = await getDocs(collection(db, 'contactLeads'));
+    const leadsSnap = await db.collection('contactLeads').get();
     const leads: any[] = [];
-    leadsSnapshot.forEach((doc) => {
-      leads.push(doc.data());
-    });
+    leadsSnap.forEach((doc: any) => leads.push(doc.data()));
     leads.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
     firestoreData.contactLeads = leads;
 
     if (Object.keys(firestoreData).length === 0) return null;
-    
-    console.log(`[Firebase Server] Successfully loaded data for ${Object.keys(firestoreData).length} sections/collections from Firestore`);
     return firestoreData;
   } catch (err) {
-    console.error('[Firebase Server] Failed to load data from Firestore:', err);
+    console.error('[Firebase Admin] Failed to load data:', err);
     return null;
   }
 }

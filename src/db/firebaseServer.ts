@@ -15,10 +15,8 @@ export function getServerFirestore(): any {
     const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
     if (!clientEmail || !privateKey) {
-      // In development / AI Studio without explicit service account keys, Firebase Admin SDK requires service account credentials.
-      // Returning null gracefully avoids 7 PERMISSION_DENIED errors and falls back to initialData cleanly.
       isInitialized = true;
-      console.log('[Firebase Admin] Service account credentials not set. Operating on local seed data (set FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY for production Firestore access).');
+      console.log('[Firebase Admin] Service account credentials not set. Operating on local seed data.');
       return null;
     }
 
@@ -49,8 +47,11 @@ export async function syncAppointmentToFirestore(appointment: any): Promise<void
   if (!db || !appointment || !appointment.id) return;
   try {
     await db.collection('appointments').doc(appointment.id).set(appointment, { merge: true });
-    console.log(`[Firebase Admin] Appointment ${appointment.id} synced`);
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 7 || err?.message?.includes('PERMISSION_DENIED')) {
+      console.warn('[Firebase Admin] Permission denied syncing appointment. Ensure service account has correct Firestore permissions.');
+      return;
+    }
     console.warn(`[Firebase Admin] Could not sync appointment ${appointment.id}:`, err);
   }
 }
@@ -60,8 +61,8 @@ export async function removeAppointmentFromFirestore(id: string): Promise<void> 
   if (!db || !id) return;
   try {
     await db.collection('appointments').doc(id).delete();
-    console.log(`[Firebase Admin] Appointment ${id} deleted`);
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 7 || err?.message?.includes('PERMISSION_DENIED')) return;
     console.warn(`[Firebase Admin] Could not delete appointment ${id}:`, err);
   }
 }
@@ -71,8 +72,8 @@ export async function syncContactLeadToFirestore(lead: any): Promise<void> {
   if (!db || !lead || !lead.id) return;
   try {
     await db.collection('contactLeads').doc(lead.id).set(lead, { merge: true });
-    console.log(`[Firebase Admin] Contact lead ${lead.id} synced`);
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 7 || err?.message?.includes('PERMISSION_DENIED')) return;
     console.warn(`[Firebase Admin] Could not sync lead ${lead.id}:`, err);
   }
 }
@@ -82,8 +83,8 @@ export async function removeContactLeadFromFirestore(id: string): Promise<void> 
   if (!db || !id) return;
   try {
     await db.collection('contactLeads').doc(id).delete();
-    console.log(`[Firebase Admin] Lead ${id} deleted`);
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 7 || err?.message?.includes('PERMISSION_DENIED')) return;
     console.warn(`[Firebase Admin] Could not delete lead ${id}:`, err);
   }
 }
@@ -97,8 +98,11 @@ export async function syncSectionToFirestore(sectionKey: string, sectionData: an
       data: sectionData,
       updatedAt: new Date().toISOString()
     }, { merge: true });
-    console.log(`[Firebase Admin] Section ${sectionKey} synced`);
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 7 || err?.message?.includes('PERMISSION_DENIED')) {
+      console.warn(`[Firebase Admin] Permission denied syncing section ${sectionKey}.`);
+      return;
+    }
     console.warn(`[Firebase Admin] Could not sync section ${sectionKey}:`, err);
   }
 }
@@ -131,7 +135,11 @@ export async function loadFullDataFromFirestore(): Promise<any> {
 
     if (Object.keys(firestoreData).length === 0) return null;
     return firestoreData;
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 7 || err?.message?.includes('PERMISSION_DENIED') || err?.message?.includes('Missing or insufficient permissions')) {
+      console.warn('[Firebase Admin] Firestore read PERMISSION_DENIED (or unconfigured permissions). Falling back to local seed data.');
+      return null;
+    }
     console.error('[Firebase Admin] Failed to load data:', err);
     return null;
   }

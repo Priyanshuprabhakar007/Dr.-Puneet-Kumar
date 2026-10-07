@@ -18,12 +18,6 @@ let cachedData: AppData | null = null;
 let lastHydrationTime: number = 0;
 const HYDRATION_TTL = 30000; // 30 seconds
 
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) {
-    fs.mkdirSync(DATA_DIR, { recursive: true });
-  }
-}
-
 export async function getDatabaseAsync(forceRefresh = false): Promise<AppData> {
   const now = Date.now();
   if (cachedData && !forceRefresh && (now - lastHydrationTime < HYDRATION_TTL)) {
@@ -61,22 +55,18 @@ export function getDatabase(): AppData {
     return cachedData;
   }
   
-  // Return initialData if not yet hydrated from Firestore
   cachedData = JSON.parse(JSON.stringify(initialData));
   return cachedData!;
 }
 
 export function saveDatabase(data: AppData): void {
   cachedData = data;
-  // Local file save is disabled for serverless environments (Netlify)
-  // Firestore sync should be handled by individual update functions
 }
 
 export async function initializeDatabase(): Promise<void> {
   try {
     const fsData = await loadFullDataFromFirestore();
     if (fsData) {
-      // Merge: Firestore data takes precedence over initialData
       cachedData = { 
         ...initialData, 
         ...fsData,
@@ -88,15 +78,15 @@ export async function initializeDatabase(): Promise<void> {
       console.log('[Storage] Global database successfully hydrated from Firestore.');
     } else {
       console.log('[Storage] No Firestore data found or could not connect. Using local initial state.');
-      getDatabase(); // Ensure cache is at least initialData
+      getDatabase();
     }
   } catch (err) {
     console.error('[Storage] Critical error during database initialization:', err);
-    getDatabase(); // Fallback
+    getDatabase();
   }
 }
 
-export function addAppointment(appointmentData: {
+export async function addAppointment(appointmentData: {
   patientName: string;
   phone: string;
   age: string;
@@ -105,8 +95,8 @@ export function addAppointment(appointmentData: {
   preferredDate: string;
   preferredTime: string;
   message?: string;
-}): Appointment {
-  const db = getDatabase();
+}): Promise<Appointment> {
+  const db = await getDatabaseAsync();
   const newAppointment: Appointment = {
     id: 'apt-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
     ...appointmentData,
@@ -117,41 +107,41 @@ export function addAppointment(appointmentData: {
 
   db.appointments.unshift(newAppointment);
   saveDatabase(db);
-  syncAppointmentToFirestore(newAppointment).catch(() => {});
+  await syncAppointmentToFirestore(newAppointment);
   return newAppointment;
 }
 
-export function updateAppointment(id: string, updates: Partial<Appointment>): Appointment | null {
-  const db = getDatabase();
+export async function updateAppointment(id: string, updates: Partial<Appointment>): Promise<Appointment | null> {
+  const db = await getDatabaseAsync();
   const index = db.appointments.findIndex((a) => a.id === id);
   if (index === -1) return null;
 
   db.appointments[index] = { ...db.appointments[index], ...updates };
   saveDatabase(db);
-  syncAppointmentToFirestore(db.appointments[index]).catch(() => {});
+  await syncAppointmentToFirestore(db.appointments[index]);
   return db.appointments[index];
 }
 
-export function deleteAppointment(id: string): boolean {
-  const db = getDatabase();
+export async function deleteAppointment(id: string): Promise<boolean> {
+  const db = await getDatabaseAsync();
   const initialLength = db.appointments.length;
   db.appointments = db.appointments.filter((a) => a.id !== id);
   if (db.appointments.length !== initialLength) {
     saveDatabase(db);
-    removeAppointmentFromFirestore(id).catch(() => {});
+    await removeAppointmentFromFirestore(id);
     return true;
   }
   return false;
 }
 
-export function addContactLead(leadData: {
+export async function addContactLead(leadData: {
   name: string;
   phone: string;
   email?: string;
   subject?: string;
   message: string;
-}): ContactLead {
-  const db = getDatabase();
+}): Promise<ContactLead> {
+  const db = await getDatabaseAsync();
   const newLead: ContactLead = {
     id: 'lead-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
     ...leadData,
@@ -162,41 +152,41 @@ export function addContactLead(leadData: {
 
   db.contactLeads.unshift(newLead);
   saveDatabase(db);
-  syncContactLeadToFirestore(newLead).catch(() => {});
+  await syncContactLeadToFirestore(newLead);
   return newLead;
 }
 
-export function updateContactLead(id: string, updates: Partial<ContactLead>): ContactLead | null {
-  const db = getDatabase();
+export async function updateContactLead(id: string, updates: Partial<ContactLead>): Promise<ContactLead | null> {
+  const db = await getDatabaseAsync();
   const index = db.contactLeads.findIndex((l) => l.id === id);
   if (index === -1) return null;
 
   db.contactLeads[index] = { ...db.contactLeads[index], ...updates };
   saveDatabase(db);
-  syncContactLeadToFirestore(db.contactLeads[index]).catch(() => {});
+  await syncContactLeadToFirestore(db.contactLeads[index]);
   return db.contactLeads[index];
 }
 
-export function deleteContactLead(id: string): boolean {
-  const db = getDatabase();
+export async function deleteContactLead(id: string): Promise<boolean> {
+  const db = await getDatabaseAsync();
   const initialLength = db.contactLeads.length;
   db.contactLeads = db.contactLeads.filter((l) => l.id !== id);
   if (db.contactLeads.length !== initialLength) {
     saveDatabase(db);
-    removeContactLeadFromFirestore(id).catch(() => {});
+    await removeContactLeadFromFirestore(id);
     return true;
   }
   return false;
 }
 
-export function addMediaItem(media: {
+export async function addMediaItem(media: {
   name: string;
   url: string;
   category: 'Doctor Photos' | 'Homepage' | 'Treatments' | 'Blogs' | 'Testimonials' | 'General';
   altText: string;
   size?: string;
-}): MediaItem {
-  const db = getDatabase();
+}): Promise<MediaItem> {
+  const db = await getDatabaseAsync();
   const newItem: MediaItem = {
     id: 'med-' + Date.now(),
     ...media,
@@ -205,17 +195,17 @@ export function addMediaItem(media: {
 
   db.media.unshift(newItem);
   saveDatabase(db);
-  syncSectionToFirestore('media', db.media).catch(() => {});
+  await syncSectionToFirestore('media', db.media);
   return newItem;
 }
 
-export function deleteMediaItem(id: string): boolean {
-  const db = getDatabase();
+export async function deleteMediaItem(id: string): Promise<boolean> {
+  const db = await getDatabaseAsync();
   const initialLength = db.media.length;
   db.media = db.media.filter((m) => m.id !== id);
   if (db.media.length !== initialLength) {
     saveDatabase(db);
-    syncSectionToFirestore('media', db.media).catch(() => {});
+    await syncSectionToFirestore('media', db.media);
     return true;
   }
   return false;

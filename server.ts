@@ -22,6 +22,27 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT || 3000);
 
+  // Configure Express for proxy (GoDaddy / reverse proxy)
+  app.set('trust proxy', 1);
+
+  // Production environment configuration validation
+  if (process.env.NODE_ENV === 'production') {
+    const requiredEnv = [
+      'ADMIN_USERNAME',
+      'ADMIN_PASSWORD',
+      'ADMIN_SESSION_SECRET',
+      'FIREBASE_PROJECT_ID',
+      'FIREBASE_CLIENT_EMAIL',
+      'FIREBASE_PRIVATE_KEY',
+      'FIREBASE_DATABASE_ID'
+    ];
+    const missing = requiredEnv.filter((env) => !process.env[env]);
+    if (missing.length > 0) {
+      console.error(`[Critical Configuration Error] Missing required production environment variables: ${missing.join(', ')}`);
+      process.exit(1);
+    }
+  }
+
   // Initialize and hydrate database from Firestore on startup
   await initializeDatabase();
 
@@ -46,24 +67,39 @@ async function startServer() {
     next();
   });
 
-  // --- Authentication & Signed Session Cookies ---
-  const ADMIN_USERNAME = process.env.ADMIN_USERNAME || 'admin';
-  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'secure_admin_password_change_me';
+  // --- Authentication & Signed Session Cookies (timingSafeEqual + base64url) ---
+  const ADMIN_USERNAME = process.env.ADMIN_USERNAME;
+  const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
   const ADMIN_SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
-  function signCookie(val: string): string {
-    const hmac = crypto.createHmac('sha256', ADMIN_SESSION_SECRET).update(val).digest('base64url');
-    return `${val}.${hmac}`;
+  function signCookie(payloadObj: object): string {
+    const jsonStr = JSON.stringify(payloadObj);
+    const encodedPayload = Buffer.from(jsonStr).toString('base64url');
+    const sig = crypto.createHmac('sha256', ADMIN_SESSION_SECRET).update(encodedPayload).digest('base64url');
+    return `${encodedPayload}.${sig}`;
   }
 
-  function verifyCookie(signedVal: string): string | null {
+  function verifyCookie(signedVal: string): any | null {
     if (!signedVal) return null;
     const parts = signedVal.split('.');
     if (parts.length !== 2) return null;
-    const [val, sig] = parts;
-    const expectedSig = crypto.createHmac('sha256', ADMIN_SESSION_SECRET).update(val).digest('base64url');
-    if (sig !== expectedSig) return null;
-    return val;
+    const [encodedPayload, sig] = parts;
+    try {
+      const expectedSig = crypto.createHmac('sha256', ADMIN_SESSION_SECRET).update(encodedPayload).digest('base64url');
+      const sigBuffer = Buffer.from(sig);
+      const expectedBuffer = Buffer.from(expectedSig);
+      if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+        return null;
+      }
+      const jsonStr = Buffer.from(encodedPayload, 'base64url').toString('utf8');
+      const data = JSON.parse(jsonStr);
+      if (data.exp < Date.now()) {
+        return null;
+      }
+      return data;
+    } catch {
+      return null;
+    }
   }
 
   function parseCookies(req: Request): Record<string, string> {
@@ -85,20 +121,12 @@ async function startServer() {
     if (!sessionCookie) {
       return res.status(401).json({ error: 'Unauthorized: Admin authentication required' });
     }
-    const unsigned = verifyCookie(sessionCookie);
-    if (!unsigned) {
-      return res.status(403).json({ error: 'Forbidden: Invalid session signature' });
+    const data = verifyCookie(sessionCookie);
+    if (!data) {
+      return res.status(403).json({ error: 'Forbidden: Invalid or expired session signature' });
     }
-    try {
-      const data = JSON.parse(unsigned);
-      if (data.exp < Date.now()) {
-        return res.status(401).json({ error: 'Session expired' });
-      }
-      (req as any).adminUser = data.username;
-      next();
-    } catch {
-      return res.status(403).json({ error: 'Invalid session payload' });
-    }
+    (req as any).adminUser = data.username;
+    next();
   };
 
   // --- Rate Limiting Store ---
@@ -126,7 +154,6 @@ async function startServer() {
 
   // --- API Routes ---
 
-  // Health check
   app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString(), doctor: 'Dr. Puneet Kumar' });
   });
@@ -134,8 +161,15 @@ async function startServer() {
   // Admin Login (Rate limited: 5 attempts per 15 minutes)
   app.post('/api/admin/login', rateLimiter(5, 15 * 60 * 1000), (req, res) => {
     const { username, password } = req.body;
-    if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-      const sessionVal = JSON.stringify({ username, exp: Date.now() + 8 * 60 * 60 * 1000 });
+    const validUser = ADMIN_USERNAME || (process.env.NODE_ENV === 'production' ? '' : 'admin');
+    const validPass = ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : 'doctor@puneet2026');
+
+    if (!validUser || !validPass) {
+      return res.status(500).json({ error: 'Admin credentials not configured' });
+    }
+
+    if (username === validUser && password === validPass) {
+      const sessionVal = { username, exp: Date.now() + 8 * 60 * 60 * 1000 };
       const signed = signCookie(sessionVal);
       res.cookie('admin_session', signed, {
         httpOnly: true,
@@ -147,7 +181,7 @@ async function startServer() {
       return res.json({
         success: true,
         user: {
-          username: ADMIN_USERNAME,
+          username: validUser,
           role: 'Administrator',
           name: 'Dr. Puneet Kumar'
         }
@@ -156,12 +190,10 @@ async function startServer() {
     return res.status(401).json({ error: 'Invalid username or password' });
   });
 
-  // Admin Verify Session
   app.get('/api/admin/verify', requireAdmin, (req, res) => {
     res.json({ valid: true, user: { username: (req as any).adminUser, role: 'Administrator' } });
   });
 
-  // Admin Logout
   app.post('/api/admin/logout', (req, res) => {
     res.clearCookie('admin_session', { path: '/' });
     res.json({ success: true, message: 'Logged out successfully' });
@@ -182,7 +214,7 @@ async function startServer() {
     }
   });
 
-  // Admin: Update content section
+  // Admin: Update content section (Awaits persistence)
   app.put('/api/content/:section', requireAdmin, async (req, res) => {
     try {
       let section = req.params.section as string;
@@ -196,15 +228,14 @@ async function startServer() {
 
       (db as any)[section] = req.body;
       saveDatabase(db);
-      syncSectionToFirestore(section, (db as any)[section]).catch(() => {});
+      await syncSectionToFirestore(section, (db as any)[section]);
       res.json({ success: true, section, data: (db as any)[section] });
     } catch (err) {
       console.error('Error updating section:', err);
-      res.status(500).json({ error: 'Failed to update section' });
+      res.status(500).json({ error: 'Failed to persist update to database' });
     }
   });
 
-  // Firebase Database Info & Connectivity
   app.get('/api/firebase/info', requireAdmin, (req, res) => {
     try {
       const fsDb = getServerFirestore();
@@ -218,7 +249,7 @@ async function startServer() {
     }
   });
 
-  // Admin: Update entire database
+  // Admin: Update entire database (Awaits persistence)
   app.put('/api/content', requireAdmin, async (req, res) => {
     try {
       const updated = req.body;
@@ -234,16 +265,15 @@ async function startServer() {
       res.json({ success: true, message: 'All content updated and synced to Firestore successfully' });
     } catch (err) {
       console.error('Error updating full content:', err);
-      res.status(500).json({ error: 'Failed to update content' });
+      res.status(500).json({ error: 'Failed to persist full content update' });
     }
   });
 
-  // Public: Create Appointment (Rate limited: 10 requests per 10 mins + Strict Server Validation)
-  app.post('/api/appointments', rateLimiter(10, 10 * 60 * 1000), (req, res) => {
+  // Public: Create Appointment (Awaits persistence)
+  app.post('/api/appointments', rateLimiter(10, 10 * 60 * 1000), async (req, res) => {
     try {
       const { patientName, phone, age, gender, concern, preferredDate, preferredTime, message, status, notes } = req.body;
 
-      // Disallow client-provided admin properties
       if (status !== undefined || notes !== undefined) {
         return res.status(400).json({ error: 'Unauthorized payload fields' });
       }
@@ -261,7 +291,7 @@ async function startServer() {
         return res.status(400).json({ error: 'Medical concern is required (max 500 chars)' });
       }
 
-      const appointment = addAppointment({
+      const appointment = await addAppointment({
         patientName: patientName.trim(),
         phone: phone.trim(),
         age: age ? String(age).slice(0, 15) : 'Not specified',
@@ -279,11 +309,10 @@ async function startServer() {
       });
     } catch (err) {
       console.error('Appointment creation error:', err);
-      res.status(500).json({ error: 'Failed to create appointment request' });
+      res.status(500).json({ error: 'Failed to persist appointment request' });
     }
   });
 
-  // Admin: Get Appointments
   app.get('/api/appointments', requireAdmin, async (req, res) => {
     try {
       const db = await getDatabaseAsync();
@@ -323,28 +352,36 @@ async function startServer() {
     }
   });
 
-  // Admin: Update Appointment Status & Notes
-  app.patch('/api/appointments/:id', requireAdmin, (req, res) => {
-    const { id } = req.params;
-    const updated = updateAppointment(id, req.body);
-    if (!updated) {
-      return res.status(404).json({ error: 'Appointment not found' });
+  // Admin: Update Appointment Status & Notes (Awaits persistence)
+  app.patch('/api/appointments/:id', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updated = await updateAppointment(id, req.body);
+      if (!updated) {
+        return res.status(404).json({ error: 'Appointment not found' });
+      }
+      res.json({ success: true, appointment: updated });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to persist appointment update' });
     }
-    res.json({ success: true, appointment: updated });
   });
 
-  // Admin: Delete Appointment
-  app.delete('/api/appointments/:id', requireAdmin, (req, res) => {
-    const { id } = req.params;
-    const deleted = deleteAppointment(id);
-    if (!deleted) {
-      return res.status(404).json({ error: 'Appointment not found' });
+  // Admin: Delete Appointment (Awaits persistence)
+  app.delete('/api/appointments/:id', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await deleteAppointment(id);
+      if (!deleted) {
+        return res.status(404).json({ error: 'Appointment not found' });
+      }
+      res.json({ success: true, message: 'Appointment deleted' });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to persist appointment deletion' });
     }
-    res.json({ success: true, message: 'Appointment deleted' });
   });
 
-  // Public: Submit Contact Lead (Rate limited)
-  app.post('/api/contact-leads', rateLimiter(10, 10 * 60 * 1000), (req, res) => {
+  // Public: Submit Contact Lead (Awaits persistence)
+  app.post('/api/contact-leads', rateLimiter(10, 10 * 60 * 1000), async (req, res) => {
     try {
       const { name, phone, email, subject, message, status, notes } = req.body;
 
@@ -365,7 +402,7 @@ async function startServer() {
         return res.status(400).json({ error: 'Invalid email format' });
       }
 
-      const lead = addContactLead({
+      const lead = await addContactLead({
         name: name.trim(),
         phone: phone.trim(),
         email: email ? email.trim() : undefined,
@@ -379,12 +416,13 @@ async function startServer() {
         lead
       });
     } catch (err) {
-      res.status(500).json({ error: 'Failed to submit contact message' });
+      console.error('Contact lead error:', err);
+      res.status(500).json({ error: 'Failed to persist contact inquiry' });
     }
   });
 
-  // Testimonials Public Submission (Rate limited + Server Validation)
-  app.post('/api/testimonials', rateLimiter(10, 10 * 60 * 1000), (req, res) => {
+  // Testimonials Public Submission (Awaits persistence)
+  app.post('/api/testimonials', rateLimiter(10, 10 * 60 * 1000), async (req, res) => {
     try {
       const { patientName, treatmentCategory, location, rating, review, isPublished, order } = req.body;
       
@@ -403,7 +441,7 @@ async function startServer() {
         return res.status(400).json({ error: 'Rating must be between 1 and 5' });
       }
 
-      const db = getDatabase();
+      const db = await getDatabaseAsync();
       
       const newTestimonial = {
         id: `test-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
@@ -412,13 +450,13 @@ async function startServer() {
         location: location ? String(location).trim().slice(0, 50) : 'Mohali',
         rating: numRating,
         review: review.trim(),
-        isPublished: false, // Server-determined default
+        isPublished: false,
         order: db.testimonials.length > 0 ? Math.max(...db.testimonials.map(t => t.order || 0)) + 1 : 1
       };
 
       db.testimonials = [newTestimonial, ...db.testimonials];
       saveDatabase(db);
-      syncSectionToFirestore('testimonials', db.testimonials).catch(() => {});
+      await syncSectionToFirestore('testimonials', db.testimonials);
 
       res.status(201).json({
         success: true,
@@ -427,50 +465,54 @@ async function startServer() {
       });
     } catch (err) {
       console.error('Error submitting testimonial:', err);
-      res.status(500).json({ error: 'Failed to submit testimonial' });
+      res.status(500).json({ error: 'Failed to persist testimonial' });
     }
   });
 
-  // Admin: Get Contact Leads
   app.get('/api/contact-leads', requireAdmin, async (req, res) => {
     const db = await getDatabaseAsync();
     res.json(db.contactLeads);
   });
 
-  // Admin: Update Contact Lead
-  app.patch('/api/contact-leads/:id', requireAdmin, (req, res) => {
-    const { id } = req.params;
-    const updated = updateContactLead(id, req.body);
-    if (!updated) {
-      return res.status(404).json({ error: 'Lead not found' });
+  app.patch('/api/contact-leads/:id', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updated = await updateContactLead(id, req.body);
+      if (!updated) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      res.json({ success: true, lead: updated });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to persist lead update' });
     }
-    res.json({ success: true, lead: updated });
   });
 
-  // Admin: Delete Contact Lead
-  app.delete('/api/contact-leads/:id', requireAdmin, (req, res) => {
-    const { id } = req.params;
-    const deleted = deleteContactLead(id);
-    if (!deleted) {
-      return res.status(404).json({ error: 'Lead not found' });
+  app.delete('/api/contact-leads/:id', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await deleteContactLead(id);
+      if (!deleted) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+      res.json({ success: true, message: 'Lead deleted' });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to persist lead deletion' });
     }
-    res.json({ success: true, message: 'Lead deleted' });
   });
 
-  // Media Library
   app.get('/api/media', async (req, res) => {
     const db = await getDatabaseAsync();
     res.json(db.media || []);
   });
 
-  app.post('/api/media', requireAdmin, (req, res) => {
+  app.post('/api/media', requireAdmin, async (req, res) => {
     try {
       const { name, url, category, altText, size } = req.body;
       if (!name || !url) {
         return res.status(400).json({ error: 'Name and URL are required' });
       }
 
-      const item = addMediaItem({
+      const item = await addMediaItem({
         name,
         url,
         category: category || 'General',
@@ -480,20 +522,23 @@ async function startServer() {
 
       res.status(201).json({ success: true, media: item });
     } catch (err) {
-      res.status(500).json({ error: 'Failed to save media item' });
+      res.status(500).json({ error: 'Failed to persist media item' });
     }
   });
 
-  app.delete('/api/media/:id', requireAdmin, (req, res) => {
-    const { id } = req.params;
-    const deleted = deleteMediaItem(id);
-    if (!deleted) {
-      return res.status(404).json({ error: 'Media not found' });
+  app.delete('/api/media/:id', requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await deleteMediaItem(id);
+      if (!deleted) {
+        return res.status(404).json({ error: 'Media not found' });
+      }
+      res.json({ success: true, message: 'Media removed' });
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to persist media deletion' });
     }
-    res.json({ success: true, message: 'Media removed' });
   });
 
-  // Dynamic Sitemap & Robots
   app.get('/sitemap.xml', (req, res) => {
     const db = getDatabase();
     const baseUrl = 'https://drpuneetkumar.com';
@@ -538,7 +583,6 @@ ${allUrls
     res.send(`User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /api/\n\nSitemap: https://drpuneetkumar.com/sitemap.xml`);
   });
 
-  // Vite middleware setup
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
       server: { middlewareMode: true },

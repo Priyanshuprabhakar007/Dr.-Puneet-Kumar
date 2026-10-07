@@ -8,11 +8,9 @@ import {
   syncContactLeadToFirestore,
   removeContactLeadFromFirestore,
   syncSectionToFirestore,
-  loadFullDataFromFirestore
+  loadFullDataFromFirestore,
+  testFirebaseConnectivity
 } from './firebaseServer';
-
-const DATA_DIR = path.join(process.cwd(), 'data');
-const DB_FILE = path.join(DATA_DIR, 'database.json');
 
 let cachedData: AppData | null = null;
 let lastHydrationTime: number = 0;
@@ -24,7 +22,6 @@ export async function getDatabaseAsync(forceRefresh = false): Promise<AppData> {
     return cachedData;
   }
 
-  // Attempt to hydrate from Firestore
   try {
     const fsData = await loadFullDataFromFirestore();
     if (fsData) {
@@ -40,9 +37,11 @@ export async function getDatabaseAsync(forceRefresh = false): Promise<AppData> {
     }
   } catch (err) {
     console.error('[Storage] Error during async hydration from Firestore:', err);
+    if (process.env.NODE_ENV === 'production') {
+      throw err;
+    }
   }
 
-  // Fallback to initialData if Firestore fails and no cache exists
   if (cachedData && !forceRefresh) return cachedData;
 
   cachedData = JSON.parse(JSON.stringify(initialData));
@@ -65,6 +64,7 @@ export function saveDatabase(data: AppData): void {
 
 export async function initializeDatabase(): Promise<void> {
   try {
+    await testFirebaseConnectivity();
     const fsData = await loadFullDataFromFirestore();
     if (fsData) {
       cachedData = { 
@@ -74,14 +74,16 @@ export async function initializeDatabase(): Promise<void> {
         doctorProfile: { ...initialData.doctorProfile, ...(fsData.doctorProfile || {}) },
         seo: { ...initialData.seo, ...(fsData.seo || {}) }
       };
-      
       console.log('[Storage] Global database successfully hydrated from Firestore.');
     } else {
-      console.log('[Storage] No Firestore data found or could not connect. Using local initial state.');
+      console.log('[Storage] No Firestore data found or running in preview mode. Using local initial state.');
       getDatabase();
     }
   } catch (err) {
     console.error('[Storage] Critical error during database initialization:', err);
+    if (process.env.NODE_ENV === 'production') {
+      throw err;
+    }
     getDatabase();
   }
 }
@@ -105,9 +107,12 @@ export async function addAppointment(appointmentData: {
     notes: ''
   };
 
+  // 1 & 2: Persist to Firestore first (throws on failure)
+  await syncAppointmentToFirestore(newAppointment);
+
+  // 3: Update cache
   db.appointments.unshift(newAppointment);
   saveDatabase(db);
-  await syncAppointmentToFirestore(newAppointment);
   return newAppointment;
 }
 
@@ -116,22 +121,25 @@ export async function updateAppointment(id: string, updates: Partial<Appointment
   const index = db.appointments.findIndex((a) => a.id === id);
   if (index === -1) return null;
 
-  db.appointments[index] = { ...db.appointments[index], ...updates };
+  const updatedRecord = { ...db.appointments[index], ...updates };
+
+  await syncAppointmentToFirestore(updatedRecord);
+
+  db.appointments[index] = updatedRecord;
   saveDatabase(db);
-  await syncAppointmentToFirestore(db.appointments[index]);
-  return db.appointments[index];
+  return updatedRecord;
 }
 
 export async function deleteAppointment(id: string): Promise<boolean> {
   const db = await getDatabaseAsync();
-  const initialLength = db.appointments.length;
+  const record = db.appointments.find((a) => a.id === id);
+  if (!record) return false;
+
+  await removeAppointmentFromFirestore(id);
+
   db.appointments = db.appointments.filter((a) => a.id !== id);
-  if (db.appointments.length !== initialLength) {
-    saveDatabase(db);
-    await removeAppointmentFromFirestore(id);
-    return true;
-  }
-  return false;
+  saveDatabase(db);
+  return true;
 }
 
 export async function addContactLead(leadData: {
@@ -150,9 +158,9 @@ export async function addContactLead(leadData: {
     notes: ''
   };
 
+  await syncContactLeadToFirestore(newLead);
   db.contactLeads.unshift(newLead);
   saveDatabase(db);
-  await syncContactLeadToFirestore(newLead);
   return newLead;
 }
 
@@ -161,22 +169,22 @@ export async function updateContactLead(id: string, updates: Partial<ContactLead
   const index = db.contactLeads.findIndex((l) => l.id === id);
   if (index === -1) return null;
 
-  db.contactLeads[index] = { ...db.contactLeads[index], ...updates };
+  const updatedLead = { ...db.contactLeads[index], ...updates };
+  await syncContactLeadToFirestore(updatedLead);
+  db.contactLeads[index] = updatedLead;
   saveDatabase(db);
-  await syncContactLeadToFirestore(db.contactLeads[index]);
-  return db.contactLeads[index];
+  return updatedLead;
 }
 
 export async function deleteContactLead(id: string): Promise<boolean> {
   const db = await getDatabaseAsync();
-  const initialLength = db.contactLeads.length;
+  const record = db.contactLeads.find((l) => l.id === id);
+  if (!record) return false;
+
+  await removeContactLeadFromFirestore(id);
   db.contactLeads = db.contactLeads.filter((l) => l.id !== id);
-  if (db.contactLeads.length !== initialLength) {
-    saveDatabase(db);
-    await removeContactLeadFromFirestore(id);
-    return true;
-  }
-  return false;
+  saveDatabase(db);
+  return true;
 }
 
 export async function addMediaItem(media: {
@@ -193,20 +201,21 @@ export async function addMediaItem(media: {
     uploadedAt: new Date().toISOString().split('T')[0]
   };
 
-  db.media.unshift(newItem);
+  const updatedMedia = [newItem, ...(db.media || [])];
+  await syncSectionToFirestore('media', updatedMedia);
+  db.media = updatedMedia;
   saveDatabase(db);
-  await syncSectionToFirestore('media', db.media);
   return newItem;
 }
 
 export async function deleteMediaItem(id: string): Promise<boolean> {
   const db = await getDatabaseAsync();
-  const initialLength = db.media.length;
-  db.media = db.media.filter((m) => m.id !== id);
-  if (db.media.length !== initialLength) {
-    saveDatabase(db);
-    await syncSectionToFirestore('media', db.media);
-    return true;
-  }
-  return false;
+  const record = (db.media || []).find((m) => m.id === id);
+  if (!record) return false;
+
+  const updatedMedia = (db.media || []).filter((m) => m.id !== id);
+  await syncSectionToFirestore('media', updatedMedia);
+  db.media = updatedMedia;
+  saveDatabase(db);
+  return true;
 }

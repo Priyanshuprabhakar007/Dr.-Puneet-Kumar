@@ -236,16 +236,17 @@ async function startServer() {
     }
   });
 
+  // Firebase Info Endpoint (Admin protected, no secrets exposed)
   app.get('/api/firebase/info', requireAdmin, (req, res) => {
     try {
       const fsDb = getServerFirestore();
       res.json({
-        configured: true,
-        databaseId: process.env.FIREBASE_DATABASE_ID || 'ai-studio-drpuneetkumarsen-05cd4290-e916-4ed9-9b98-9ed263c1c298',
-        connected: !!fsDb
+        configured: !!process.env.FIREBASE_PROJECT_ID,
+        connected: !!fsDb,
+        databaseId: process.env.FIREBASE_DATABASE_ID || '(default)'
       });
     } catch {
-      res.json({ configured: false, connected: false });
+      res.json({ configured: false, connected: false, databaseId: process.env.FIREBASE_DATABASE_ID || '(default)' });
     }
   });
 
@@ -352,16 +353,24 @@ async function startServer() {
     }
   });
 
-  // Admin: Update Appointment Status & Notes (Awaits persistence)
+  // Admin: Update Appointment Status & Notes (Awaits persistence, strict field whitelist)
   app.patch('/api/appointments/:id', requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const updated = await updateAppointment(id, req.body);
+      const { status, notes, preferredDate, preferredTime } = req.body;
+      const updates: any = {};
+      if (status !== undefined) updates.status = String(status).slice(0, 30);
+      if (notes !== undefined) updates.notes = String(notes).slice(0, 1000);
+      if (preferredDate !== undefined) updates.preferredDate = String(preferredDate).slice(0, 50);
+      if (preferredTime !== undefined) updates.preferredTime = String(preferredTime).slice(0, 50);
+
+      const updated = await updateAppointment(id, updates);
       if (!updated) {
         return res.status(404).json({ error: 'Appointment not found' });
       }
       res.json({ success: true, appointment: updated });
     } catch (err) {
+      console.error('Appointment patch error:', err);
       res.status(500).json({ error: 'Failed to persist appointment update' });
     }
   });
@@ -474,15 +483,22 @@ async function startServer() {
     res.json(db.contactLeads);
   });
 
+  // Admin: Update Contact Lead (Awaits persistence, strict field whitelist)
   app.patch('/api/contact-leads/:id', requireAdmin, async (req, res) => {
     try {
       const { id } = req.params;
-      const updated = await updateContactLead(id, req.body);
+      const { status, notes } = req.body;
+      const updates: any = {};
+      if (status !== undefined) updates.status = String(status).slice(0, 30);
+      if (notes !== undefined) updates.notes = String(notes).slice(0, 1000);
+
+      const updated = await updateContactLead(id, updates);
       if (!updated) {
         return res.status(404).json({ error: 'Lead not found' });
       }
       res.json({ success: true, lead: updated });
     } catch (err) {
+      console.error('Contact lead patch error:', err);
       res.status(500).json({ error: 'Failed to persist lead update' });
     }
   });

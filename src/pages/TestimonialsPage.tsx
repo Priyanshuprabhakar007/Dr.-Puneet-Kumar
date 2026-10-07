@@ -4,7 +4,7 @@ import { useSite } from '../context/SiteContext';
 import { Star, CheckCircle2, Quote, Plus, X, Heart } from 'lucide-react';
 
 export const TestimonialsPage: React.FC = () => {
-  const { data, showToast } = useSite();
+  const { data, showToast, submitTestimonial } = useSite();
   const { testimonials } = data;
 
   const [filterCategory, setFilterCategory] = useState('All');
@@ -30,24 +30,26 @@ export const TestimonialsPage: React.FC = () => {
             t.treatmentCategory.toLowerCase().includes(filterCategory.toLowerCase())
         );
 
-  const handleReviewSubmit = (e: React.FormEvent) => {
+  const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reviewForm.patientName.trim() || !reviewForm.review.trim()) {
       showToast('Please fill all required fields.', 'error');
       return;
     }
-    showToast(
-      'Thank you for your review! It will be published after clinical administrative verification.',
-      'success'
-    );
-    setIsSubmitModalOpen(false);
-    setReviewForm({
-      patientName: '',
-      rating: 5,
-      review: '',
-      treatmentCategory: 'Diabetes Care',
-      location: 'Mohali'
-    });
+    const res = await submitTestimonial(reviewForm);
+    if (res.success) {
+      showToast(res.message, 'success');
+      setIsSubmitModalOpen(false);
+      setReviewForm({
+        patientName: '',
+        rating: 5,
+        review: '',
+        treatmentCategory: 'Diabetes Care',
+        location: 'Mohali'
+      });
+    } else {
+      showToast(res.message, 'error');
+    }
   };
 
   return (

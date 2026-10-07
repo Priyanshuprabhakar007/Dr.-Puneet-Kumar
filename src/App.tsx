@@ -25,6 +25,7 @@ import { ContactPage } from './pages/ContactPage';
 import { BookAppointmentPage } from './pages/BookAppointmentPage';
 import { PrivacyPolicyPage, TermsPage, MedicalDisclaimerPage } from './pages/LegalPages';
 import { AdminPage } from './pages/AdminPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 
 function AppContent() {
   const { currentPath, data, navigate } = useSite();
@@ -172,7 +173,7 @@ function AppContent() {
     } else if (currentPath === '/medical-disclaimer') {
       pageComponent = <MedicalDisclaimerPage />;
     } else {
-      pageComponent = <HomePage />;
+      pageComponent = <NotFoundPage />;
     }
 
     return (

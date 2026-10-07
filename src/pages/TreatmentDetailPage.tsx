@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { useSite } from '../context/SiteContext';
+import { NotFoundPage } from './NotFoundPage';
 import { IconRenderer } from '../components/common/IconRenderer';
 import {
   Calendar,
@@ -21,7 +22,7 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
   const { treatments, treatmentCategories, settings, doctorProfile } = data;
 
   const activeSlug = propSlug || currentPath.replace('/treatments/', '').trim();
-  const treatment = treatments.find((t) => t.slug === activeSlug) || treatments[0];
+  const treatment = treatments.find((t) => t.slug === activeSlug);
 
   const [bookingForm, setBookingForm] = useState({
     patientName: '',
@@ -37,23 +38,7 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
   const [bookingError, setBookingError] = useState('');
 
   if (!treatment) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 py-20 px-4">
-        <div className="text-center max-w-md bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
-          <Stethoscope className="w-12 h-12 text-slate-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-slate-800 mb-2">Condition Not Found</h2>
-          <p className="text-sm text-slate-600 mb-6">
-            The requested medical condition page could not be located or has been archived.
-          </p>
-          <button
-            onClick={() => navigate('/treatments')}
-            className="px-6 py-2.5 bg-blue-700 text-white rounded-2xl text-xs font-semibold"
-          >
-            Back to Treatments Directory
-          </button>
-        </div>
-      </div>
-    );
+    return <NotFoundPage />;
   }
 
   const category = treatmentCategories.find((c) => c.id === treatment.categoryId);

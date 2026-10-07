@@ -26,7 +26,7 @@ import { BookAppointmentPage } from './pages/BookAppointmentPage';
 import { PrivacyPolicyPage, TermsPage, MedicalDisclaimerPage } from './pages/LegalPages';
 import { AdminPage } from './pages/AdminPage';
 import { NotFoundPage } from './pages/NotFoundPage';
-import { getSeoForPath } from './utils/seo';
+import { getSeoForPath, safeJsonLd } from './utils/seo';
 
 function AppContent() {
   const { currentPath, data, navigate } = useSite();
@@ -51,7 +51,9 @@ function AppContent() {
   }, [navigate]);
 
   useEffect(() => {
-    const origin = window.location.origin;
+    // Primary SEO Origin: read authoritative server-resolved public origin meta tag
+    const appPublicOriginMeta = document.querySelector('meta[name="app-public-origin"]')?.getAttribute('content');
+    const origin = (appPublicOriginMeta && appPublicOriginMeta.trim()) || window.location.origin;
     const seo = getSeoForPath(currentPath, data, origin);
 
     document.title = seo.title;
@@ -94,84 +96,78 @@ function AppContent() {
     setMetaTag('name', 'twitter:description', seo.description);
     setMetaTag('name', 'twitter:image', seo.ogImage);
 
-    // Schema.org Physician Structured Data
-    const physicianSchemaId = 'physician-structured-data';
-    let physicianScript = document.getElementById(physicianSchemaId) as HTMLScriptElement | null;
-    if (!physicianScript) {
-      physicianScript = document.createElement('script');
-      physicianScript.id = physicianSchemaId;
-      physicianScript.type = 'application/ld+json';
-      document.head.appendChild(physicianScript);
-    }
-
-    const defaultImage = `${origin}/aggarwal-clinic-logo.png`;
-    const physicianSchema: any = {
-      '@context': 'https://schema.org',
-      '@type': 'Physician',
-      name: data.doctorProfile?.name || 'Dr. Puneet Kumar',
-      description: 'Senior Physician & Diabetes Specialist in Mohali',
-      medicalSpecialty: ['GeneralPractice', 'Endocrine', 'InternalMedicine'],
-      url: `${origin}/`,
-      image: defaultImage
+    // Helper to safely upsert or remove a JSON-LD script by stable ID
+    const upsertJsonLd = (id: string, schemaObj: object | null | undefined) => {
+      let script = document.getElementById(id) as HTMLScriptElement | null;
+      if (schemaObj) {
+        if (!script) {
+          script = document.createElement('script');
+          script.id = id;
+          script.type = 'application/ld+json';
+          document.head.appendChild(script);
+        }
+        script.textContent = safeJsonLd(schemaObj);
+      } else if (script) {
+        script.remove();
+      }
     };
 
-    if (data.settings?.primaryPhone) {
-      physicianSchema.telephone = data.settings.primaryPhone;
-    }
+    // Clean up any legacy script tags
+    ['physician-structured-data', 'breadcrumbs-structured-data', 'blog-structured-data', 'page-entity-structured-data'].forEach((legacyId) => {
+      document.getElementById(legacyId)?.remove();
+    });
 
-    if (data.settings?.primaryAddress) {
-      physicianSchema.address = {
-        '@type': 'PostalAddress',
-        streetAddress: data.settings.primaryAddress,
-        addressLocality: data.settings.city || 'Mohali',
-        addressRegion: data.settings.state || 'Punjab',
-        addressCountry: 'IN'
-      };
-    }
+    const isExcludedFromSchema = seo.status === 404 || seo.robots.includes('noindex');
 
-    physicianScript.textContent = JSON.stringify(physicianSchema);
+    if (isExcludedFromSchema) {
+      // 404 or admin routes: remove all schemas to avoid invalid/unnecessary indexing
+      upsertJsonLd('seo-physician-jsonld', null);
+      upsertJsonLd('seo-website-jsonld', null);
+      upsertJsonLd('seo-breadcrumb-jsonld', null);
+      upsertJsonLd('seo-page-jsonld', null);
+    } else {
+      const defaultImage = `${origin}/aggarwal-clinic-logo.png`;
 
-    // Schema.org Breadcrumbs
-    const breadcrumbsSchemaId = 'breadcrumbs-structured-data';
-    let breadcrumbsScript = document.getElementById(breadcrumbsSchemaId) as HTMLScriptElement | null;
-    if (seo.breadcrumbs && seo.breadcrumbs.length > 0) {
-      if (!breadcrumbsScript) {
-        breadcrumbsScript = document.createElement('script');
-        breadcrumbsScript.id = breadcrumbsSchemaId;
-        breadcrumbsScript.type = 'application/ld+json';
-        document.head.appendChild(breadcrumbsScript);
-      }
-      const breadcrumbList = {
+      // 1. Physician Schema (conservative verified fields only: NO unverified telephone or postal address)
+      const physicianSchema = {
         '@context': 'https://schema.org',
-        '@type': 'BreadcrumbList',
-        itemListElement: seo.breadcrumbs.map((b, idx) => ({
-          '@type': 'ListItem',
-          position: idx + 1,
-          name: b.name,
-          item: b.url
-        }))
+        '@type': 'Physician',
+        name: data.doctorProfile?.name || 'Dr. Puneet Kumar',
+        description: 'Senior Physician & Diabetes Specialist in Mohali',
+        medicalSpecialty: ['GeneralPractice', 'Endocrine', 'InternalMedicine'],
+        url: `${origin}/`,
+        image: defaultImage
       };
-      breadcrumbsScript.textContent = JSON.stringify(breadcrumbList);
-    } else if (breadcrumbsScript) {
-      breadcrumbsScript.remove();
-    }
+      upsertJsonLd('seo-physician-jsonld', physicianSchema);
 
-    // Schema.org Page Entity Structured Data (BlogPosting / MedicalWebPage)
-    const entitySchemaId = 'page-entity-structured-data';
-    let entityScript = document.getElementById(entitySchemaId) as HTMLScriptElement | null;
-    const oldBlogScript = document.getElementById('blog-structured-data');
-    if (oldBlogScript) oldBlogScript.remove();
+      // 2. WebSite Schema
+      const websiteSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: 'Dr. Puneet Kumar Clinic',
+        url: `${origin}/`
+      };
+      upsertJsonLd('seo-website-jsonld', websiteSchema);
 
-    if (seo.schemaJson) {
-      if (!entityScript) {
-        entityScript = document.createElement('script');
-        entityScript.id = entitySchemaId;
-        entityScript.type = 'application/ld+json';
-        document.head.appendChild(entityScript);
+      // 3. BreadcrumbList Schema
+      if (seo.breadcrumbs && seo.breadcrumbs.length > 0) {
+        const breadcrumbList = {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: seo.breadcrumbs.map((b, idx) => ({
+            '@type': 'ListItem',
+            position: idx + 1,
+            name: b.name,
+            item: b.url
+          }))
+        };
+        upsertJsonLd('seo-breadcrumb-jsonld', breadcrumbList);
+      } else {
+        upsertJsonLd('seo-breadcrumb-jsonld', null);
       }
-      entityScript.textContent = JSON.stringify(seo.schemaJson);
-    } else if (entityScript) {
-      entityScript.remove();
+
+      // 4. Page Entity Schema (BlogPosting / MedicalWebPage)
+      upsertJsonLd('seo-page-jsonld', seo.schemaJson || null);
     }
   }, [currentPath, data]);
 

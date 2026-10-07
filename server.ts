@@ -47,12 +47,35 @@ async function startServer() {
       'FIREBASE_PROJECT_ID',
       'FIREBASE_CLIENT_EMAIL',
       'FIREBASE_PRIVATE_KEY',
-      'FIREBASE_DATABASE_ID'
+      'FIREBASE_DATABASE_ID',
+      'PUBLIC_SITE_URL'
     ];
     const missing = requiredEnv.filter((env) => !process.env[env]);
     if (missing.length > 0) {
       console.error(`[Critical Configuration Error] Missing required production environment variables: ${missing.join(', ')}`);
       process.exit(1);
+    }
+
+    try {
+      const parsed = new URL(process.env.PUBLIC_SITE_URL!);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        throw new Error(`Invalid protocol "${parsed.protocol}". Only http: and https: are allowed.`);
+      }
+      process.env.PUBLIC_SITE_URL = `${parsed.protocol}//${parsed.host}${parsed.pathname === '/' ? '' : parsed.pathname}`.replace(/\/+$/, '');
+    } catch (err: any) {
+      console.error(`[Critical Configuration Error] Malformed PUBLIC_SITE_URL ("${process.env.PUBLIC_SITE_URL}"): ${err.message}`);
+      process.exit(1);
+    }
+  } else if (process.env.PUBLIC_SITE_URL && process.env.PUBLIC_SITE_URL.trim()) {
+    try {
+      const parsed = new URL(process.env.PUBLIC_SITE_URL.trim());
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        process.env.PUBLIC_SITE_URL = `${parsed.protocol}//${parsed.host}${parsed.pathname === '/' ? '' : parsed.pathname}`.replace(/\/+$/, '');
+      } else {
+        process.env.PUBLIC_SITE_URL = '';
+      }
+    } catch {
+      process.env.PUBLIC_SITE_URL = '';
     }
   }
 

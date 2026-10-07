@@ -30,12 +30,28 @@ export function formatW3CDate(dateStr?: string): string | null {
   return new Date(parsed).toISOString().split('T')[0];
 }
 
+export function safeJsonLd(value: any): string {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 export function getPublicOrigin(configuredUrl?: string, reqHost?: string, reqProto?: string): string {
   if (configuredUrl && configuredUrl.trim()) {
-    return configuredUrl.trim().replace(/\/+$/, '');
+    try {
+      const parsed = new URL(configuredUrl.trim());
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        return `${parsed.protocol}//${parsed.host}${parsed.pathname === '/' ? '' : parsed.pathname}`.replace(/\/+$/, '');
+      }
+    } catch {
+      return configuredUrl.trim().replace(/\/+$/, '');
+    }
   }
   if (reqHost) {
-    const proto = reqProto || 'http';
+    const proto = (reqProto || 'http').split(',')[0].trim();
     return `${proto}://${reqHost}`.replace(/\/+$/, '');
   }
   return 'http://localhost:3000';
@@ -303,8 +319,8 @@ export function getSeoForPath(rawPath: string, db: AppData, origin: string): Seo
     return {
       status: 200,
       isFound: true,
-      title: 'Patient Reviews & Verified Experiences | Dr. Puneet Kumar',
-      description: 'Read verified patient recovery stories and clinical consultation feedback from patients treated by Dr. Puneet Kumar in Mohali.',
+      title: 'Patient Reviews & Experiences | Dr. Puneet Kumar',
+      description: 'Read patient feedback and consultation experiences shared about care with Dr. Puneet Kumar.',
       canonicalUrl: `${origin}/testimonials`,
       robots: 'index, follow',
       ogType: 'website',
@@ -323,7 +339,7 @@ export function getSeoForPath(rawPath: string, db: AppData, origin: string): Seo
       status: 200,
       isFound: true,
       title: 'Contact Clinic & Timings | Dr. Puneet Kumar Mohali',
-      description: 'Clinic location at Sector 71 Mohali, direct phone contacts, OPD consultation timings, and directions for Dr. Puneet Kumar.',
+      description: "Contact Dr. Puneet Kumar's clinic for consultation timings, appointment information and directions in Mohali.",
       canonicalUrl: `${origin}/contact`,
       robots: 'index, follow',
       ogType: 'website',
@@ -342,7 +358,7 @@ export function getSeoForPath(rawPath: string, db: AppData, origin: string): Seo
       status: 200,
       isFound: true,
       title: 'Book Doctor Appointment | Dr. Puneet Kumar Mohali',
-      description: 'Schedule an in-person clinical consultation with Senior Physician Dr. Puneet Kumar at Sector 71, Mohali. Convenient slots and care.',
+      description: 'Request an appointment with Dr. Puneet Kumar for an in-person medical consultation in Mohali.',
       canonicalUrl: `${origin}/book-appointment`,
       robots: 'index, follow',
       ogType: 'website',
@@ -442,61 +458,56 @@ export function getSeoForPath(rawPath: string, db: AppData, origin: string): Seo
 export function buildInjectedHtml(html: string, seo: SeoMetadata, db: AppData, origin: string): string {
   const defaultImage = `${origin}/aggarwal-clinic-logo.png`;
 
-  // Base Structured Data
-  const physicianSchema: any = {
-    '@context': 'https://schema.org',
-    '@type': 'Physician',
-    name: db.doctorProfile?.name || 'Dr. Puneet Kumar',
-    description: 'Senior Physician & Diabetes Specialist in Mohali',
-    medicalSpecialty: ['GeneralPractice', 'Endocrine', 'InternalMedicine'],
-    url: `${origin}/`,
-    image: defaultImage
-  };
+  // Do NOT emit medical or site structured data on 404 or admin/noindex pages
+  const isExcludedFromSchema = seo.status === 404 || seo.robots.includes('noindex');
 
-  if (db.settings?.primaryPhone) {
-    physicianSchema.telephone = db.settings.primaryPhone;
-  }
+  const scriptTags: string[] = [];
 
-  if (db.settings?.primaryAddress) {
-    physicianSchema.address = {
-      '@type': 'PostalAddress',
-      streetAddress: db.settings.primaryAddress,
-      addressLocality: db.settings.city || 'Mohali',
-      addressRegion: db.settings.state || 'Punjab',
-      addressCountry: 'IN'
-    };
-  }
-
-  const schemas: any[] = [physicianSchema];
-
-  // Website Schema
-  schemas.push({
-    '@context': 'https://schema.org',
-    '@type': 'WebSite',
-    name: 'Dr. Puneet Kumar Clinic',
-    url: `${origin}/`
-  });
-
-  // Breadcrumbs Schema
-  if (seo.breadcrumbs && seo.breadcrumbs.length > 0) {
-    schemas.push({
+  if (!isExcludedFromSchema) {
+    // 1. Physician Schema (conservative verified fields only: NO unverified telephone or postal address)
+    const physicianSchema = {
       '@context': 'https://schema.org',
-      '@type': 'BreadcrumbList',
-      itemListElement: seo.breadcrumbs.map((b, idx) => ({
-        '@type': 'ListItem',
-        position: idx + 1,
-        name: b.name,
-        item: b.url
-      }))
-    });
-  }
+      '@type': 'Physician',
+      name: db.doctorProfile?.name || 'Dr. Puneet Kumar',
+      description: 'Senior Physician & Diabetes Specialist in Mohali',
+      medicalSpecialty: ['GeneralPractice', 'Endocrine', 'InternalMedicine'],
+      url: `${origin}/`,
+      image: defaultImage
+    };
+    scriptTags.push(`<script type="application/ld+json" id="seo-physician-jsonld">${safeJsonLd(physicianSchema)}</script>`);
 
-  // Article / BlogPosting Schema
-  if (seo.schemaJson) {
-    schemas.push(seo.schemaJson);
+    // 2. WebSite Schema
+    const websiteSchema = {
+      '@context': 'https://schema.org',
+      '@type': 'WebSite',
+      name: 'Dr. Puneet Kumar Clinic',
+      url: `${origin}/`
+    };
+    scriptTags.push(`<script type="application/ld+json" id="seo-website-jsonld">${safeJsonLd(websiteSchema)}</script>`);
+
+    // 3. BreadcrumbList Schema
+    if (seo.breadcrumbs && seo.breadcrumbs.length > 0) {
+      const breadcrumbSchema = {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: seo.breadcrumbs.map((b, idx) => ({
+          '@type': 'ListItem',
+          position: idx + 1,
+          name: b.name,
+          item: b.url
+        }))
+      };
+      scriptTags.push(`<script type="application/ld+json" id="seo-breadcrumb-jsonld">${safeJsonLd(breadcrumbSchema)}</script>`);
+    }
+
+    // 4. Page Entity Schema (BlogPosting / MedicalWebPage)
+    if (seo.schemaJson) {
+      scriptTags.push(`<script type="application/ld+json" id="seo-page-jsonld">${safeJsonLd(seo.schemaJson)}</script>`);
+    }
   }
 
   const tags = [
+    `<meta name="app-public-origin" content="${escapeHtml(origin)}" />`,
     `<title>${escapeHtml(seo.title)}</title>`,
     `<meta name="description" content="${escapeHtml(seo.description)}" />`,
     `<meta name="robots" content="${escapeHtml(seo.robots)}" />`,
@@ -511,12 +522,13 @@ export function buildInjectedHtml(html: string, seo: SeoMetadata, db: AppData, o
     `<meta name="twitter:title" content="${escapeHtml(seo.title)}" />`,
     `<meta name="twitter:description" content="${escapeHtml(seo.description)}" />`,
     `<meta name="twitter:image" content="${escapeHtml(seo.ogImage)}" />`,
-    ...schemas.map((s) => `<script type="application/ld+json">${JSON.stringify(s)}</script>`)
+    ...scriptTags
   ].join('\n    ');
 
-  // Strip existing title and metadata tags that will be replaced
+  // Strip existing title, metadata, app-public-origin, and any ld+json scripts that will be replaced
   let modifiedHtml = html
     .replace(/<title>.*?<\/title>/gi, '')
+    .replace(/<meta\s+name=["']app-public-origin["'][^>]*>/gi, '')
     .replace(/<meta\s+name=["']description["'][^>]*>/gi, '')
     .replace(/<meta\s+name=["']robots["'][^>]*>/gi, '')
     .replace(/<link\s+rel=["']canonical["'][^>]*>/gi, '')
@@ -529,7 +541,8 @@ export function buildInjectedHtml(html: string, seo: SeoMetadata, db: AppData, o
     .replace(/<meta\s+name=["']twitter:card["'][^>]*>/gi, '')
     .replace(/<meta\s+name=["']twitter:title["'][^>]*>/gi, '')
     .replace(/<meta\s+name=["']twitter:description["'][^>]*>/gi, '')
-    .replace(/<meta\s+name=["']twitter:image["'][^>]*>/gi, '');
+    .replace(/<meta\s+name=["']twitter:image["'][^>]*>/gi, '')
+    .replace(/<script\s+type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi, '');
 
   // Inject right after <head>
   return modifiedHtml.replace(/<head>/i, `<head>\n    ${tags}`);

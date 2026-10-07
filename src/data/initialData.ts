@@ -2,10 +2,10 @@ import { AppData } from '../types';
 
 export const initialData: AppData = {
   settings: {
-    siteName: 'Dr. Puneet Kumar Pulmonology',
+    siteName: 'Dr. Puneet Kumar Clinic & Diabetes Care',
     doctorName: 'Dr. Puneet Kumar',
-    title: 'Consultant – Pulmonary Medicine',
-    tagline: 'Breathe Better. Sleep Better. Live Better.',
+    title: 'Senior Physician & Diabetes Specialist',
+    tagline: 'Helping You Live Better, Beyond Diabetes.',
     primaryPhone: '+91 98765 43210',
     secondaryPhone: '+91 172 4567890',
     whatsappNumber: '+919876543210',
@@ -27,34 +27,34 @@ export const initialData: AppData = {
     secondaryButtonUrl: 'tel:+919876543210',
     doctorPhotoUrl: '41f7ab1c-6d57-4048-b31a-9ccd54ac484f.png',
     experienceYears: '12+ Years Experience',
-    specializationBadge: 'Pulmonology Specialist',
-    internalMedicineBadge: 'Chest Physician (MD)',
-    patientCareBadge: 'Comprehensive Lung Care'
+    specializationBadge: 'Diabetes & Internal Medicine',
+    internalMedicineBadge: 'Senior Physician (MD)',
+    patientCareBadge: 'Comprehensive Care'
   },
   doctorProfile: {
     name: 'Dr. Puneet Kumar',
-    designation: 'Consultant – Pulmonary Medicine',
-    shortBio: 'Dr. Puneet Kumar is a leading Chest Physician and Pulmonology Specialist dedicated to managing complex respiratory conditions and sleep disorders.',
+    designation: 'Senior Physician & Diabetes Specialist',
+    shortBio: 'Dr. Puneet Kumar is a leading Senior Physician and Diabetes Specialist dedicated to managing complex metabolic disorders, diabetes, and general medical conditions.',
     fullBio: [
-      'Dr. Puneet Kumar has over 12 years of clinical excellence in Pulmonary Medicine and Critical Care. Having treated thousands of patients across leading tertiary-care hospital networks in the Tricity (including SGHS Sohana, Indus Super Specialty Hospital, MAX Super Specialty Hospital Mohali, and Fortis Hospital Mohali), Dr. Puneet is renowned for his expertise in complex lung diseases.',
-      'He believes in evidence-based respiratory care combined with thorough patient education. Conditions such as Asthma, COPD, and Interstitial Lung Disease require more than just prescriptions—they require a sustained therapeutic partnership focusing on lung function maintenance and lifestyle optimization.',
-      'Dr. Puneet regularly participates in national and international pulmonary colloquiums, ensuring his patients receive the latest guideline-directed therapeutics, advanced interventional protocols, and comprehensive sleep medicine solutions.'
+      'Dr. Puneet Kumar has over 12 years of clinical excellence in Internal Medicine and Diabetology. Having treated thousands of patients across leading tertiary-care hospital networks in the Tricity (including SGHS Sohana, Indus Super Specialty Hospital, MAX Super Specialty Hospital Mohali, and Fortis Hospital Mohali), Dr. Puneet is renowned for his precision management of complex diabetes and metabolic disorders.',
+      'He believes in evidence-based clinical care combined with thorough patient education. Conditions such as Diabetes Mellitus, Hypertension, and Thyroid Disorders require a sustained therapeutic partnership focusing on lifestyle optimization and complication mitigation.',
+      'Dr. Puneet regularly participates in national and international medical colloquiums, ensuring his patients receive the latest guideline-directed therapeutics, advanced diabetic care protocols, and comprehensive holistic medicine.'
     ],
     photoUrl: '41f7ab1c-6d57-4048-b31a-9ccd54ac484f.png',
     secondaryPhotoUrl: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?q=80&w=900&auto=format&fit=crop',
-    degrees: 'MBBS, MD (Medicine), DM (Pulmonology)',
+    degrees: 'MBBS, MD (Internal Medicine), Fellowship in Diabetes',
     experienceYears: 12,
     patientsTreated: '25,000+',
     clinicalFocus: [
-      'Asthma & COPD Management',
-      'Interstitial Lung Disease (ILD)',
-      'Sleep-Related Breathing Disorders',
-      'Advanced Interventional Pulmonology',
-      'Tuberculosis & Infectious Lung Diseases',
-      'Pleural Diseases & Effusions',
-      'Critical Care Medicine'
+      'Diabetes Mellitus (Type 1 & Type 2)',
+      'Hypertension & Cardiovascular Risk',
+      'Thyroid Disorders',
+      'Obesity & Metabolic Syndrome',
+      'Fever & Infectious Diseases',
+      'General Medical Conditions',
+      'Asthma & Respiratory Care'
     ],
-    philosophy: 'Breathing is the foundation of life. My goal is to ensure every patient can breathe easily and live a full, active life through precision medicine.'
+    philosophy: 'Health is the foundation of life. My goal is to ensure every patient achieves optimal metabolic balance and vibrant well-being through precision medicine and compassionate care.'
   },
   qualifications: [
     {

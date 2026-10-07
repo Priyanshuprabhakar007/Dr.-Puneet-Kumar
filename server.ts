@@ -214,7 +214,7 @@ async function startServer() {
     }
   });
 
-  // Admin: Update content section (Awaits persistence)
+  // Admin: Update content section (Transactional: Awaits Firestore persistence before mutating cache)
   app.put('/api/content/:section', requireAdmin, async (req, res) => {
     try {
       let section = req.params.section as string;
@@ -226,17 +226,20 @@ async function startServer() {
         return res.status(400).json({ error: `Section '${section}' does not exist` });
       }
 
-      (db as any)[section] = req.body;
+      const updatedSectionData = req.body;
+      // 3: Await syncSectionToFirestore first
+      await syncSectionToFirestore(section, updatedSectionData);
+      // 4: Only after successful Firestore persistence update local cache
+      (db as any)[section] = updatedSectionData;
       saveDatabase(db);
-      await syncSectionToFirestore(section, (db as any)[section]);
-      res.json({ success: true, section, data: (db as any)[section] });
+      res.json({ success: true, section, data: updatedSectionData });
     } catch (err) {
       console.error('Error updating section:', err);
       res.status(500).json({ error: 'Failed to persist update to database' });
     }
   });
 
-  // Firebase Info Endpoint (Admin protected, no secrets exposed)
+  // Firebase Info Endpoint (Admin protected, uses process.env.FIREBASE_DATABASE_ID)
   app.get('/api/firebase/info', requireAdmin, (req, res) => {
     try {
       const fsDb = getServerFirestore();
@@ -250,18 +253,21 @@ async function startServer() {
     }
   });
 
-  // Admin: Update entire database (Awaits persistence)
+  // Admin: Update entire database (Transactional: persists all required sections before saveDatabase)
   app.put('/api/content', requireAdmin, async (req, res) => {
     try {
       const updated = req.body;
-      saveDatabase(updated);
-      
       const sections = Object.keys(updated);
+      
+      // Persist all required sections first
       for (const section of sections) {
         if (section !== 'appointments' && section !== 'contactLeads' && (Array.isArray(updated[section]) || typeof updated[section] === 'object')) {
           await syncSectionToFirestore(section, updated[section]);
         }
       }
+      
+      // Only after every required Firestore operation succeeds: saveDatabase
+      saveDatabase(updated);
       
       res.json({ success: true, message: 'All content updated and synced to Firestore successfully' });
     } catch (err) {
@@ -430,7 +436,7 @@ async function startServer() {
     }
   });
 
-  // Testimonials Public Submission (Awaits persistence)
+  // Testimonials Public Submission (Transactional: Awaits Firestore persistence before mutating cache)
   app.post('/api/testimonials', rateLimiter(10, 10 * 60 * 1000), async (req, res) => {
     try {
       const { patientName, treatmentCategory, location, rating, review, isPublished, order } = req.body;
@@ -463,9 +469,13 @@ async function startServer() {
         order: db.testimonials.length > 0 ? Math.max(...db.testimonials.map(t => t.order || 0)) + 1 : 1
       };
 
-      db.testimonials = [newTestimonial, ...db.testimonials];
+      const updatedTestimonials = [newTestimonial, ...(db.testimonials || [])];
+      // Await syncSectionToFirestore first
+      await syncSectionToFirestore('testimonials', updatedTestimonials);
+
+      // Only after success assign to local cache and call saveDatabase
+      db.testimonials = updatedTestimonials;
       saveDatabase(db);
-      await syncSectionToFirestore('testimonials', db.testimonials);
 
       res.status(201).json({
         success: true,

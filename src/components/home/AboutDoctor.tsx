@@ -15,7 +15,7 @@ export const AboutDoctor: React.FC = () => {
   const { doctorProfile } = data;
 
   const highlights = [
-    { label: 'Experience', value: '12+ Years', icon: Award },
+    { label: 'Experience', value: '15+ Years', icon: Award },
     { label: 'Patients Treated', value: '15,000+', icon: Users },
     { label: 'Hospital Networks', value: 'Top Tier', icon: Building2 },
   ];
@@ -48,7 +48,7 @@ export const AboutDoctor: React.FC = () => {
             {/* Trust Badge */}
             <div className="absolute -bottom-8 -right-8 p-10 bg-slate-900 text-white rounded-[3rem] shadow-2xl hidden md:block border-8 border-white">
               <div className="space-y-1">
-                <p className="text-5xl font-black font-display tracking-tighter">12+</p>
+                <p className="text-5xl font-black font-display tracking-tighter">15+</p>
                 <p className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-60">Years Clinical<br />Practice</p>
               </div>
             </div>
@@ -74,7 +74,7 @@ export const AboutDoctor: React.FC = () => {
               
               <ScrollReveal animation="stagger-item">
                 <p className="text-lg lg:text-xl text-slate-500 font-medium leading-relaxed tracking-tight max-w-xl">
-                  Dr. Puneet Kumar specializes in complex internal medicine cases and advanced diabetology. With a career spanning over a decade, his approach focuses on evidence-based protocols and individualized patient journeys.
+                  Dr. Puneet Kumar specializes in complex internal medicine cases and advanced diabetology. With over 15 years of clinical experience, his approach focuses on evidence-based protocols and individualized patient journeys.
                 </p>
               </ScrollReveal>
             </div>

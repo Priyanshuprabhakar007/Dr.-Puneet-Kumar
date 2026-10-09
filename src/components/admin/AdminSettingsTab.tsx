@@ -56,7 +56,7 @@ export const AdminSettingsTab: React.FC = () => {
     if (isConnected) {
       showToast('Firebase Firestore is fully connected and active!', 'success');
     } else {
-      showToast('Firebase connection unavailable. Operating on fallback state.', 'error');
+      showToast('Firebase connection is currently unavailable.', 'error');
     }
   };
 

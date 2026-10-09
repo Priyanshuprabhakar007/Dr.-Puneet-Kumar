@@ -1,4 +1,4 @@
-import { AppData } from '../types';
+import { AppData } from '../types.js';
 
 export interface SeoMetadata {
   status: 200 | 404;

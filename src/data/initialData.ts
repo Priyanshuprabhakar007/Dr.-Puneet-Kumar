@@ -1,4 +1,4 @@
-import { AppData } from '../types';
+import { AppData } from '../types.js';
 
 export const initialData: AppData = {
   settings: {

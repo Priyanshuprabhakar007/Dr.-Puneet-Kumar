@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import { initialData } from '../data/initialData';
-import { AppData, Appointment, ContactLead, MediaItem } from '../types';
+import { initialData } from '../data/initialData.js';
+import { AppData, Appointment, ContactLead, MediaItem } from '../types.js';
 import {
   syncAppointmentToFirestore,
   removeAppointmentFromFirestore,
@@ -10,7 +10,7 @@ import {
   syncSectionToFirestore,
   loadFullDataFromFirestore,
   testFirebaseConnectivity
-} from './firebaseServer';
+} from './firebaseServer.js';
 
 let cachedData: AppData | null = null;
 let lastHydrationTime: number = 0;

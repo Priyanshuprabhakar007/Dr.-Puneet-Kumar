@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
 import { getStorage } from 'firebase-admin/storage';
-import { getServerFirestore } from './firebaseServer';
+import { getServerFirestore } from './firebaseServer.js';
 
 export interface StorageUploadResult {
   publicUrl: string;

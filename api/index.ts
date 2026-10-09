@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import { createApp } from './_app';
+import { createApp } from './_app.js';
 
 let appPromise: Promise<any> | null = null;
 

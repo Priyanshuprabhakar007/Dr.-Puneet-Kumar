@@ -1,4 +1,4 @@
-import { createApp } from './api/_app';
+import { createApp } from './api/_app.js';
 
 export { createApp };
 

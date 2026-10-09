@@ -4,7 +4,6 @@ import fs from 'fs';
 import crypto from 'crypto';
 import multer from 'multer';
 import { fileURLToPath } from 'url';
-import { createServer as createViteServer } from 'vite';
 import {
   getDatabase,
   getDatabaseAsync,
@@ -18,10 +17,10 @@ import {
   addMediaItem,
   deleteMediaItem,
   initializeDatabase
-} from '../src/db/storage';
-import { syncSectionToFirestore, getServerFirestore } from '../src/db/firebaseServer';
-import { getMediaStorageProvider } from '../src/db/mediaStorage';
-import { getPublicOrigin, getSeoForPath, buildInjectedHtml, escapeHtml, formatW3CDate } from '../src/utils/seo';
+} from '../src/db/storage.js';
+import { syncSectionToFirestore, getServerFirestore } from '../src/db/firebaseServer.js';
+import { getMediaStorageProvider } from '../src/db/mediaStorage.js';
+import { getPublicOrigin, getSeoForPath, buildInjectedHtml, escapeHtml, formatW3CDate } from '../src/utils/seo.js';
 
 const getModuleDir = (): string => {
   if (typeof __dirname !== 'undefined') {
@@ -861,6 +860,7 @@ ${allPages
   });
 
   if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',

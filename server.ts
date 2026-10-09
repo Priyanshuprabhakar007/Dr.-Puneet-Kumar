@@ -22,7 +22,7 @@ import { syncSectionToFirestore, getServerFirestore } from './src/db/firebaseSer
 import { getMediaStorageProvider } from './src/db/mediaStorage';
 import { getPublicOrigin, getSeoForPath, buildInjectedHtml, escapeHtml, formatW3CDate } from './src/utils/seo';
 
-async function startServer() {
+export async function createApp(): Promise<express.Express> {
   const app = express();
   const PORT = Number(process.env.PORT || 3000);
 
@@ -845,7 +845,7 @@ ${allPages
     res.status(404).json({ error: 'API endpoint not found' });
   });
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -886,25 +886,48 @@ ${allPages
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
-    const indexHtmlPath = path.join(distPath, 'index.html');
     let cachedIndexHtml = '';
 
-    // Production static asset serving with long-lived immutable caching for hashed assets
-    app.use(
-      express.static(distPath, {
-        index: false,
-        setHeaders: (res, filePath) => {
-          const normalizedPath = filePath.replace(/\\/g, '/');
-          if (normalizedPath.includes('/assets/')) {
-            // Content-hashed Vite bundle assets: 1 year immutable
-            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
-          } else {
-            // Other static files (e.g. logo, favicon): 1 hour cache
-            res.setHeader('Cache-Control', 'public, max-age=3600');
+    function getTemplateHtml(): string {
+      if (cachedIndexHtml) return cachedIndexHtml;
+      const candidates = [
+        path.join(distPath, 'index.html'),
+        path.join(process.cwd(), 'index.html'),
+        path.resolve(__dirname, '..', 'dist', 'index.html'),
+        path.resolve(__dirname, 'dist', 'index.html'),
+        path.resolve(__dirname, 'index.html')
+      ];
+      for (const p of candidates) {
+        try {
+          if (fs.existsSync(p)) {
+            cachedIndexHtml = fs.readFileSync(p, 'utf-8');
+            return cachedIndexHtml;
           }
+        } catch {
+          // continue
         }
-      })
-    );
+      }
+      return '';
+    }
+
+    // Production static asset serving with long-lived immutable caching for hashed assets
+    if (fs.existsSync(distPath)) {
+      app.use(
+        express.static(distPath, {
+          index: false,
+          setHeaders: (res, filePath) => {
+            const normalizedPath = filePath.replace(/\\/g, '/');
+            if (normalizedPath.includes('/assets/')) {
+              // Content-hashed Vite bundle assets: 1 year immutable
+              res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+            } else {
+              // Other static files (e.g. logo, favicon): 1 hour cache
+              res.setHeader('Cache-Control', 'public, max-age=3600');
+            }
+          }
+        })
+      );
+    }
 
     app.get('*', async (req, res, next) => {
       if (req.path.startsWith('/api') || req.path.includes('.')) {
@@ -912,8 +935,9 @@ ${allPages
       }
 
       try {
-        if (!cachedIndexHtml) {
-          cachedIndexHtml = fs.readFileSync(indexHtmlPath, 'utf-8');
+        const rawTemplate = getTemplateHtml();
+        if (!rawTemplate) {
+          return res.status(500).send('Application HTML template not found');
         }
 
         const db = await getDatabaseAsync();
@@ -929,7 +953,7 @@ ${allPages
         res.setHeader('Pragma', 'no-cache');
         res.setHeader('Expires', '0');
 
-        const html = buildInjectedHtml(cachedIndexHtml, seo, db, origin);
+        const html = buildInjectedHtml(rawTemplate, seo, db, origin);
         res.status(seo.status).send(html);
       } catch (err) {
         next(err);
@@ -953,12 +977,29 @@ ${allPages
     res.status(500).send('Internal Server Error');
   });
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Dr. Puneet Kumar Clinic Web Server] Running on http://0.0.0.0:${PORT}`);
+  return app;
+}
+
+export async function startServer(): Promise<void> {
+  const app = await createApp();
+  const PORT = Number(process.env.PORT || 3000);
+  return new Promise<void>((resolve) => {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`[Dr. Puneet Kumar Clinic Web Server] Running on http://0.0.0.0:${PORT}`);
+      resolve();
+    });
   });
 }
 
-startServer().catch((err) => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
-});
+// Standalone execution: runs app.listen when executed directly (GoDaddy npm start, local dev)
+const isMainModule = typeof require !== 'undefined' && require.main === module;
+const isExecutedDirectly =
+  isMainModule ||
+  (Boolean(process.argv[1]) && /(?:server\.(?:ts|cjs|js)|startServer)$/.test(process.argv[1]));
+
+if (isExecutedDirectly && !process.env.VERCEL) {
+  startServer().catch((err) => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+}

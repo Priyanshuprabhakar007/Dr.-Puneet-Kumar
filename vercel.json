@@ -1,0 +1,30 @@
+{
+  "version": 2,
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/assets/(.*)",
+      "destination": "/assets/$1"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api?__url=/api/$1"
+    },
+    {
+      "source": "/api",
+      "destination": "/api?__url=/api"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api?__url=/sitemap.xml"
+    },
+    {
+      "source": "/robots.txt",
+      "destination": "/api?__url=/robots.txt"
+    },
+    {
+      "source": "/((?!assets/|uploads/|.*\\.[a-zA-Z0-9]+$).*)",
+      "destination": "/api?__url=/$1"
+    }
+  ]
+}

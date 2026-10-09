@@ -52,27 +52,31 @@ export const AdminTreatmentsTab: React.FC = () => {
       updated = [editingItem, ...treatments];
     }
 
-    setTreatments(updated);
-    await updateSection('treatments', updated);
+    const success = await updateSection('treatments', updated);
     setIsSaving(false);
-    setEditingItem(null);
-    showToast('Treatments saved successfully!', 'success');
+    if (success) {
+      setTreatments(updated);
+      setEditingItem(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to remove this treatment?')) return;
     const updated = treatments.filter((t) => t.id !== id);
-    setTreatments(updated);
-    await updateSection('treatments', updated);
-    showToast('Treatment deleted.', 'info');
+    const success = await updateSection('treatments', updated);
+    if (success) {
+      setTreatments(updated);
+    }
   };
 
   const togglePublish = async (id: string) => {
     const updated = treatments.map((t) =>
       t.id === id ? { ...t, published: t.published === false ? true : false } : t
     );
-    setTreatments(updated);
-    await updateSection('treatments', updated);
+    const success = await updateSection('treatments', updated);
+    if (success) {
+      setTreatments(updated);
+    }
   };
 
   return (

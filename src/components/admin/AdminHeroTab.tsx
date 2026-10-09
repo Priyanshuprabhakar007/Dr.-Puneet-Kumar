@@ -32,7 +32,6 @@ export const AdminHeroTab: React.FC = () => {
     setIsSaving(true);
     await updateSection('hero', hero);
     setIsSaving(false);
-    showToast('Hero section saved successfully!', 'success');
   };
 
   return (

@@ -179,18 +179,18 @@ export const AdminLayout: React.FC = () => {
           </div>
         </div>
 
-        {/* Firebase Firestore Database Status */}
+        {/* Database Engine Status */}
         <div className="px-4 py-3 mx-4 mb-3 rounded-2xl bg-slate-850/90 border border-slate-800 text-xs">
           <div className="flex items-center justify-between">
             <span className="text-slate-400 font-medium text-[11px]">Database Engine</span>
             <span className="inline-flex items-center gap-1.5 text-green-400 font-bold text-[11px]">
-              <span className="w-2 h-2 rounded-2xl bg-green-400 animate-pulse"></span>
-              Firestore Active
+              <span className="w-2 h-2 rounded-2xl bg-green-400"></span>
+              Firestore Connected
             </span>
           </div>
           <div className="mt-1.5 flex items-center justify-between text-[10px] text-slate-400">
-            <span>Project</span>
-            <span className="font-mono text-slate-300">spheric-transit-098sv</span>
+            <span>Architecture</span>
+            <span className="text-slate-300 font-medium">Server API &rarr; Firestore</span>
           </div>
         </div>
 

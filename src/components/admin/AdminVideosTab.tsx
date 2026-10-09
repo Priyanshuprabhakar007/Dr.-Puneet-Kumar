@@ -32,17 +32,21 @@ export const AdminVideosTab: React.FC = () => {
     } else {
       updated = [editingItem, ...videos];
     }
-    setVideos(updated);
-    await updateSection('videos', updated);
-    setEditingItem(null);
-    showToast('Video list updated!', 'success');
+
+    const success = await updateSection('videos', updated);
+    if (success) {
+      setVideos(updated);
+      setEditingItem(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this video?')) return;
     const updated = videos.filter((v) => v.id !== id);
-    setVideos(updated);
-    await updateSection('videos', updated);
+    const success = await updateSection('videos', updated);
+    if (success) {
+      setVideos(updated);
+    }
   };
 
   return (

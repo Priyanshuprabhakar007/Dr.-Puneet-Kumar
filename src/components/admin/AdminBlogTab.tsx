@@ -38,25 +38,31 @@ export const AdminBlogTab: React.FC = () => {
     } else {
       updated = [editingItem, ...blogs];
     }
-    setBlogs(updated);
-    await updateSection('blogs', updated);
-    setEditingItem(null);
-    showToast('Articles saved!', 'success');
+
+    const success = await updateSection('blogs', updated);
+    if (success) {
+      setBlogs(updated);
+      setEditingItem(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this article?')) return;
     const updated = blogs.filter((b) => b.id !== id);
-    setBlogs(updated);
-    await updateSection('blogs', updated);
+    const success = await updateSection('blogs', updated);
+    if (success) {
+      setBlogs(updated);
+    }
   };
 
   const togglePublish = async (id: string) => {
     const updated = blogs.map((b) =>
       b.id === id ? { ...b, published: b.published === false ? true : false } : b
     );
-    setBlogs(updated);
-    await updateSection('blogs', updated);
+    const success = await updateSection('blogs', updated);
+    if (success) {
+      setBlogs(updated);
+    }
   };
 
   return (

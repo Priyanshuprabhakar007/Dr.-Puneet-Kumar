@@ -17,7 +17,7 @@ export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
   helperText,
   category = 'General'
 }) => {
-  const { data, showToast } = useSite();
+  const { data, showToast, registerUploadedMedia } = useSite();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -68,6 +68,9 @@ export const ImageUploadField: React.FC<ImageUploadFieldProps> = ({
       }
 
       onChange(result.url);
+      if (result.media) {
+        registerUploadedMedia(result.media);
+      }
       showToast('Image uploaded and saved successfully!', 'success');
     } catch (err: any) {
       console.error('Image upload error:', err);

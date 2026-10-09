@@ -24,17 +24,21 @@ export const AdminQualificationsTab: React.FC = () => {
     } else {
       updated = [...qualifications, editingQual];
     }
-    setQualifications(updated);
-    await updateSection('qualifications', updated);
-    setEditingQual(null);
-    showToast('Qualifications updated!', 'success');
+
+    const success = await updateSection('qualifications', updated);
+    if (success) {
+      setQualifications(updated);
+      setEditingQual(null);
+    }
   };
 
   const handleDeleteQual = async (id: string) => {
     if (!confirm('Remove this qualification?')) return;
     const updated = qualifications.filter((q) => q.id !== id);
-    setQualifications(updated);
-    await updateSection('qualifications', updated);
+    const success = await updateSection('qualifications', updated);
+    if (success) {
+      setQualifications(updated);
+    }
   };
 
   // Save Experience
@@ -48,17 +52,21 @@ export const AdminQualificationsTab: React.FC = () => {
     } else {
       updated = [...experiences, editingExp];
     }
-    setExperiences(updated);
-    await updateSection('experience', updated);
-    setEditingExp(null);
-    showToast('Experience timeline updated!', 'success');
+
+    const success = await updateSection('experience', updated);
+    if (success) {
+      setExperiences(updated);
+      setEditingExp(null);
+    }
   };
 
   const handleDeleteExp = async (id: string) => {
     if (!confirm('Remove this experience entry?')) return;
     const updated = experiences.filter((exp) => exp.id !== id);
-    setExperiences(updated);
-    await updateSection('experience', updated);
+    const success = await updateSection('experience', updated);
+    if (success) {
+      setExperiences(updated);
+    }
   };
 
   return (

@@ -140,8 +140,8 @@ export const Footer: React.FC = () => {
             <button onClick={() => handleNav('/terms')} className="hover:text-white transition-colors">Terms</button>
             <button onClick={() => handleNav('/medical-disclaimer')} className="hover:text-white transition-colors">Disclaimer</button>
             <button
-              onClick={() => handleNav(isAdminAuthenticated ? '/admin' : '/admin/login')}
-              className="flex items-center gap-2 text-slate-300 hover:text-white transition-all bg-slate-900 hover:bg-slate-800 px-5 py-2.5 rounded-xl border border-slate-800 shadow-lg"
+              onClick={() => handleNav('/admin')}
+              className="flex items-center gap-2 text-slate-300 hover:text-white transition-all bg-slate-900 hover:bg-slate-800 px-5 py-2.5 rounded-xl border border-slate-800 shadow-lg cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5 text-blue-500" />
               <span className="font-bold tracking-tight">{isAdminAuthenticated ? 'Admin Dashboard' : 'Physician Login'}</span>

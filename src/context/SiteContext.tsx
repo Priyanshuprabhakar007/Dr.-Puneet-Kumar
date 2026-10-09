@@ -53,6 +53,7 @@ interface SiteContextType {
   // Media manager helper
   addMedia: (media: { name: string; url: string; category: any; altText: string; size?: string }) => Promise<boolean>;
   deleteMedia: (id: string) => Promise<boolean>;
+  registerUploadedMedia: (mediaItem: any) => void;
 }
 
 const SiteContext = createContext<SiteContextType | undefined>(undefined);
@@ -394,6 +395,20 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     [showToast]
   );
 
+  const registerUploadedMedia = useCallback((mediaItem: any) => {
+    if (!mediaItem) return;
+    setData((prev) => {
+      const existing = prev.media || [];
+      if (existing.some((m) => m.id === mediaItem.id || m.url === mediaItem.url)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        media: [mediaItem, ...existing]
+      };
+    });
+  }, []);
+
   const openAppointmentModal = useCallback((concern: string = '') => {
     setDefaultConcern(concern);
     setIsAppointmentModalOpen(true);
@@ -429,7 +444,8 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         openAppointmentModal,
         closeAppointmentModal,
         addMedia,
-        deleteMedia
+        deleteMedia,
+        registerUploadedMedia
       }}
     >
       {children}

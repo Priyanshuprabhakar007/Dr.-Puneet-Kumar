@@ -31,25 +31,31 @@ export const AdminTestimonialsTab: React.FC = () => {
     } else {
       updated = [editingItem, ...testimonials];
     }
-    setTestimonials(updated);
-    await updateSection('testimonials', updated);
-    setEditingItem(null);
-    showToast('Testimonials updated!', 'success');
+
+    const success = await updateSection('testimonials', updated);
+    if (success) {
+      setTestimonials(updated);
+      setEditingItem(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this testimonial?')) return;
     const updated = testimonials.filter((t) => t.id !== id);
-    setTestimonials(updated);
-    await updateSection('testimonials', updated);
+    const success = await updateSection('testimonials', updated);
+    if (success) {
+      setTestimonials(updated);
+    }
   };
 
   const togglePublish = async (id: string) => {
     const updated = testimonials.map((t) =>
       t.id === id ? { ...t, isPublished: !t.isPublished } : t
     );
-    setTestimonials(updated);
-    await updateSection('testimonials', updated);
+    const success = await updateSection('testimonials', updated);
+    if (success) {
+      setTestimonials(updated);
+    }
   };
 
   return (

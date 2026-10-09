@@ -29,25 +29,31 @@ export const AdminFaqTab: React.FC = () => {
     } else {
       updated = [editingItem, ...faqs];
     }
-    setFaqs(updated);
-    await updateSection('faqs', updated);
-    setEditingItem(null);
-    showToast('FAQs saved!', 'success');
+
+    const success = await updateSection('faqs', updated);
+    if (success) {
+      setFaqs(updated);
+      setEditingItem(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this FAQ?')) return;
     const updated = faqs.filter((f) => f.id !== id);
-    setFaqs(updated);
-    await updateSection('faqs', updated);
+    const success = await updateSection('faqs', updated);
+    if (success) {
+      setFaqs(updated);
+    }
   };
 
   const togglePublish = async (id: string) => {
     const updated = faqs.map((f) =>
       f.id === id ? { ...f, published: f.published === false ? true : false } : f
     );
-    setFaqs(updated);
-    await updateSection('faqs', updated);
+    const success = await updateSection('faqs', updated);
+    if (success) {
+      setFaqs(updated);
+    }
   };
 
   return (

@@ -19,6 +19,7 @@ import {
   initializeDatabase
 } from './src/db/storage';
 import { syncSectionToFirestore, getServerFirestore } from './src/db/firebaseServer';
+import { getMediaStorageProvider } from './src/db/mediaStorage';
 import { getPublicOrigin, getSeoForPath, buildInjectedHtml, escapeHtml, formatW3CDate } from './src/utils/seo';
 
 async function startServer() {
@@ -49,11 +50,23 @@ async function startServer() {
       'FIREBASE_CLIENT_EMAIL',
       'FIREBASE_PRIVATE_KEY',
       'FIREBASE_DATABASE_ID',
-      'PUBLIC_SITE_URL'
+      'PUBLIC_SITE_URL',
+      'MEDIA_STORAGE_PROVIDER'
     ];
     const missing = requiredEnv.filter((env) => !process.env[env]);
     if (missing.length > 0) {
       console.error(`[Critical Configuration Error] Missing required production environment variables: ${missing.join(', ')}`);
+      process.exit(1);
+    }
+
+    const storageProviderVal = (process.env.MEDIA_STORAGE_PROVIDER || '').toLowerCase().trim();
+    if (storageProviderVal !== 'local' && storageProviderVal !== 'firebase') {
+      console.error(`[Critical Configuration Error] Invalid MEDIA_STORAGE_PROVIDER ("${process.env.MEDIA_STORAGE_PROVIDER}"). Must be "local" or "firebase".`);
+      process.exit(1);
+    }
+
+    if (storageProviderVal === 'firebase' && !process.env.FIREBASE_STORAGE_BUCKET) {
+      console.error('[Critical Configuration Error] FIREBASE_STORAGE_BUCKET is required in production when MEDIA_STORAGE_PROVIDER=firebase.');
       process.exit(1);
     }
 
@@ -131,27 +144,9 @@ async function startServer() {
     })
   );
 
-  // Multer configuration with strict mime validation, 5MB file limit, and randomized safe filenames
-  const diskStorage = multer.diskStorage({
-    destination: (_req, _file, cb) => {
-      cb(null, uploadsDir);
-    },
-    filename: (_req, file, cb) => {
-      const extMatch = file.originalname.match(/\.(jpg|jpeg|png|webp)$/i);
-      const ext = extMatch
-        ? extMatch[1].toLowerCase()
-        : file.mimetype === 'image/png'
-        ? 'png'
-        : file.mimetype === 'image/webp'
-        ? 'webp'
-        : 'jpg';
-      const safeName = `img-${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
-      cb(null, safeName);
-    }
-  });
-
+  // Multer memory storage configuration with strict mime validation and 5MB file limit
   const upload = multer({
-    storage: diskStorage,
+    storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
     fileFilter: (_req, file, cb) => {
       const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/jpg'];
@@ -369,17 +364,26 @@ async function startServer() {
     }
   });
 
-  // Firebase Info Endpoint (Admin protected, uses process.env.FIREBASE_DATABASE_ID)
+  // Firebase Info Endpoint (Admin protected, safe server-provided connection diagnostics)
   app.get('/api/firebase/info', requireAdmin, (req, res) => {
     try {
       const fsDb = getServerFirestore();
+      const storageProvider = getMediaStorageProvider().getProviderName();
       res.json({
         configured: !!process.env.FIREBASE_PROJECT_ID,
         connected: !!fsDb,
-        databaseId: process.env.FIREBASE_DATABASE_ID || '(default)'
+        databaseId: process.env.FIREBASE_DATABASE_ID || '(default)',
+        mediaStorageProvider: storageProvider,
+        hasStorageBucket: !!process.env.FIREBASE_STORAGE_BUCKET
       });
     } catch {
-      res.json({ configured: false, connected: false, databaseId: process.env.FIREBASE_DATABASE_ID || '(default)' });
+      res.json({
+        configured: false,
+        connected: false,
+        databaseId: process.env.FIREBASE_DATABASE_ID || '(default)',
+        mediaStorageProvider: 'local',
+        hasStorageBucket: false
+      });
     }
   });
 
@@ -661,7 +665,7 @@ async function startServer() {
     res.json(db.media || []);
   });
 
-  // Admin: Upload Image File (Accepts JPG, PNG, WEBP <= 5MB, returns persistent URL and creates media record)
+  // Admin: Upload Image File (Accepts JPG, PNG, WEBP <= 5MB, uploads via storage provider, persists in Firestore, rollback on failure)
   app.post('/api/admin/media/upload', requireAdmin, (req, res) => {
     upload.single('file')(req, res, async (err) => {
       if (err) {
@@ -675,35 +679,51 @@ async function startServer() {
         return res.status(400).json({ error: 'No image file was provided in the upload request.' });
       }
 
-      try {
-        const publicUrl = `/uploads/${req.file.filename}`;
-        const rawTitle = req.body.title || req.body.name || req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, ' ').trim();
-        const title = String(rawTitle || 'Uploaded Image').slice(0, 100);
-        const category = (req.body.category || 'General') as any;
-        const altText = String(req.body.altText || title).slice(0, 200);
-        const sizeStr = `${(req.file.size / 1024).toFixed(1)} KB`;
+      const storageProvider = getMediaStorageProvider();
+      let uploadResult: any;
 
+      // 1. Upload to storage provider (Local / Firebase)
+      try {
+        uploadResult = await storageProvider.uploadImage(
+          req.file.buffer,
+          req.file.mimetype,
+          req.file.originalname
+        );
+      } catch (storageErr: any) {
+        console.error('[Upload Transaction] Storage upload failed:', storageErr);
+        return res.status(500).json({ error: storageErr.message || 'Failed to store image file' });
+      }
+
+      const rawTitle = req.body.title || req.body.name || req.file.originalname.replace(/[^a-zA-Z0-9.-]/g, ' ').trim();
+      const title = String(rawTitle || 'Uploaded Image').slice(0, 100);
+      const category = (req.body.category || 'General') as any;
+      const altText = String(req.body.altText || title).slice(0, 200);
+      const sizeStr = `${(req.file.size / 1024).toFixed(1)} KB`;
+
+      // 2. Persist metadata to database (Firestore). Roll back storage object on failure.
+      try {
         const item = await addMediaItem({
           name: title,
-          url: publicUrl,
+          url: uploadResult.publicUrl,
           category,
           altText,
           size: sizeStr
         });
 
-        res.status(201).json({
+        return res.status(201).json({
           success: true,
-          url: publicUrl,
-          filename: req.file.filename,
+          url: uploadResult.publicUrl,
+          filename: uploadResult.filename,
           media: item
         });
-      } catch (saveErr) {
-        console.error('Error recording uploaded media in database:', saveErr);
-        res.status(201).json({
-          success: true,
-          url: `/uploads/${req.file.filename}`,
-          filename: req.file.filename
-        });
+      } catch (fsErr) {
+        console.error('[Upload Transaction] Firestore persistence failed. Rolling back storage file:', fsErr);
+        try {
+          await storageProvider.deleteImage(uploadResult.storageRef || uploadResult.publicUrl);
+        } catch (cleanupErr) {
+          console.warn('[Upload Transaction] Storage rollback cleanup warning:', cleanupErr);
+        }
+        return res.status(500).json({ error: 'Failed to record media in database. File upload was rolled back.' });
       }
     });
   });
@@ -735,23 +755,23 @@ async function startServer() {
       const db = await getDatabaseAsync();
       const item = (db.media || []).find((m) => m.id === id);
 
-      // If local uploaded file, safely remove physical file
-      if (item && item.url && item.url.startsWith('/uploads/')) {
-        const filename = path.basename(item.url);
-        const filePath = path.join(uploadsDir, filename);
-        if (fs.existsSync(filePath)) {
-          try {
-            fs.unlinkSync(filePath);
-          } catch (unlinkErr) {
-            console.warn('[Storage] Could not unlink media file:', unlinkErr);
-          }
-        }
-      }
-
-      const deleted = await deleteMediaItem(id);
-      if (!deleted) {
+      if (!item) {
         return res.status(404).json({ error: 'Media not found' });
       }
+
+      // 1. First remove media record from Firestore / database
+      const deleted = await deleteMediaItem(id);
+      if (!deleted) {
+        return res.status(500).json({ error: 'Failed to delete media record from database' });
+      }
+
+      // 2. Only after database deletion succeeds, clean up underlying storage object
+      try {
+        await getMediaStorageProvider().deleteImage(item.url);
+      } catch (storageErr) {
+        console.warn('[Media Delete] Storage cleanup warning:', storageErr);
+      }
+
       res.json({ success: true, message: 'Media removed' });
     } catch (err) {
       res.status(500).json({ error: 'Failed to persist media deletion' });

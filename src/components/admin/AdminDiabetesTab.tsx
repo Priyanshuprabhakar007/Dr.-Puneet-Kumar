@@ -32,18 +32,21 @@ export const AdminDiabetesTab: React.FC = () => {
       updated = [editingItem, ...services];
     }
 
-    setServices(updated);
-    await updateSection('diabetesServices', updated);
+    const success = await updateSection('diabetesServices', updated);
     setIsSaving(false);
-    setEditingItem(null);
-    showToast('Diabetes services updated!', 'success');
+    if (success) {
+      setServices(updated);
+      setEditingItem(null);
+    }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this diabetes service card?')) return;
     const updated = services.filter((s) => s.id !== id);
-    setServices(updated);
-    await updateSection('diabetesServices', updated);
+    const success = await updateSection('diabetesServices', updated);
+    if (success) {
+      setServices(updated);
+    }
   };
 
   return (

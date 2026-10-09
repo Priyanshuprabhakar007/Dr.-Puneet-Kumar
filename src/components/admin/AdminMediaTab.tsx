@@ -1,14 +1,18 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useSite } from '../../context/SiteContext';
 import { MediaAsset } from '../../types';
-import { Plus, Copy, Trash2, Upload, X, Loader2, Image as ImageIcon } from 'lucide-react';
+import { Plus, Copy, Trash2, Upload, X, Loader2 } from 'lucide-react';
 
 export const AdminMediaTab: React.FC = () => {
-  const { data, updateSection, showToast } = useSite();
+  const { data, showToast, addMedia, deleteMedia, registerUploadedMedia } = useSite();
   const [media, setMedia] = useState<MediaAsset[]>(data.media || []);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setMedia(data.media || []);
+  }, [data.media]);
 
   const [newAsset, setNewAsset] = useState<Partial<MediaAsset>>({
     title: 'Clinic Photo',
@@ -66,9 +70,9 @@ export const AdminMediaTab: React.FC = () => {
         createdAt: new Date().toISOString()
       };
 
-      const updated = [created, ...media];
-      setMedia(updated);
-      await updateSection('media', updated);
+      // Update state without duplicate database writes
+      registerUploadedMedia(created);
+      setMedia((prev) => [created, ...prev]);
       showToast('Image uploaded and added to Media Library!', 'success');
     } catch (err: any) {
       console.error('Direct media upload error:', err);
@@ -85,34 +89,25 @@ export const AdminMediaTab: React.FC = () => {
     e.preventDefault();
     if (!newAsset.url) return;
 
-    const created: MediaAsset = {
-      id: `media-${Date.now()}`,
-      title: newAsset.title || 'New Media',
+    const success = await addMedia({
+      name: newAsset.title || 'New Media',
       url: newAsset.url,
       altText: newAsset.altText || newAsset.title || 'Medical Photo',
-      category: (newAsset.category as any) || 'General',
-      createdAt: new Date().toISOString()
-    };
+      category: (newAsset.category as any) || 'General'
+    });
 
-    const updated = [created, ...media];
-    setMedia(updated);
-    await updateSection('media', updated);
-    setIsAddModalOpen(false);
-    setNewAsset({ title: 'Clinic Photo', url: '', altText: 'Doctor Clinic OPD', category: 'Doctor' });
-    showToast('Media added to library!', 'success');
+    if (success) {
+      setIsAddModalOpen(false);
+      setNewAsset({ title: 'Clinic Photo', url: '', altText: 'Doctor Clinic OPD', category: 'Doctor' });
+    }
   };
 
   const handleDeleteMedia = async (id: string) => {
     if (!confirm('Remove image from library?')) return;
-    try {
-      await fetch(`/api/media/${id}`, { method: 'DELETE', credentials: 'same-origin' });
-    } catch (err) {
-      console.warn('Could not delete on server:', err);
+    const ok = await deleteMedia(id);
+    if (ok) {
+      setMedia((prev) => prev.filter((m) => m.id !== id));
     }
-    const updated = media.filter((m) => m.id !== id);
-    setMedia(updated);
-    await updateSection('media', updated);
-    showToast('Image removed from library.', 'info');
   };
 
   return (
@@ -166,7 +161,7 @@ export const AdminMediaTab: React.FC = () => {
             <div className="aspect-square bg-slate-100 relative overflow-hidden">
               <img
                 src={item.url}
-                alt={item.altText || item.title}
+                alt={item.altText || item.title || item.name}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src =
@@ -179,7 +174,7 @@ export const AdminMediaTab: React.FC = () => {
             </div>
 
             <div className="p-3 text-xs space-y-2">
-              <p className="font-bold text-slate-800 truncate">{item.title}</p>
+              <p className="font-bold text-slate-800 truncate">{item.title || item.name}</p>
               <div className="flex items-center justify-between pt-1 border-t border-slate-100">
                 <button
                   onClick={() => handleCopyUrl(item.url)}

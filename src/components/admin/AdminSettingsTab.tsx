@@ -356,7 +356,11 @@ export const AdminSettingsTab: React.FC = () => {
             <span className="font-bold text-slate-700 block">Media Storage Provider:</span>
             <span className="text-slate-700 font-semibold flex items-center gap-1">
               <HardDrive className="w-3.5 h-3.5 text-blue-600" />
-              {dbInfo.storageProvider === 'firebase' ? 'Firebase Cloud Storage' : 'Local Server Storage'}
+              {dbInfo.storageProvider === 'supabase'
+                ? 'Supabase Storage'
+                : dbInfo.storageProvider === 'firebase'
+                ? 'Firebase Cloud Storage'
+                : 'Local Server Storage'}
             </span>
           </div>
         </div>

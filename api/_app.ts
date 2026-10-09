@@ -73,12 +73,21 @@ export async function createApp(): Promise<express.Express> {
     }
 
     const storageProviderVal = (process.env.MEDIA_STORAGE_PROVIDER || '').toLowerCase().trim();
-    if (storageProviderVal !== 'local' && storageProviderVal !== 'firebase') {
-      throw new Error(`[Configuration] Invalid MEDIA_STORAGE_PROVIDER ("${process.env.MEDIA_STORAGE_PROVIDER}"). Must be "local" or "firebase".`);
+    if (storageProviderVal !== 'local' && storageProviderVal !== 'firebase' && storageProviderVal !== 'supabase') {
+      throw new Error(`[Configuration] Invalid MEDIA_STORAGE_PROVIDER ("${process.env.MEDIA_STORAGE_PROVIDER}"). Must be "local", "firebase", or "supabase".`);
     }
 
     if (storageProviderVal === 'firebase' && !process.env.FIREBASE_STORAGE_BUCKET) {
       throw new Error('[Configuration] FIREBASE_STORAGE_BUCKET is required in production when MEDIA_STORAGE_PROVIDER=firebase.');
+    }
+
+    if (storageProviderVal === 'supabase') {
+      const missingSupabase = ['SUPABASE_URL', 'SUPABASE_SECRET_KEY', 'SUPABASE_STORAGE_BUCKET'].filter(
+        (env) => !process.env[env]
+      );
+      if (missingSupabase.length > 0) {
+        throw new Error(`[Configuration] Missing required Supabase environment variables when MEDIA_STORAGE_PROVIDER=supabase: ${missingSupabase.join(', ')}`);
+      }
     }
 
     try {
@@ -381,7 +390,7 @@ export async function createApp(): Promise<express.Express> {
         connected: !!fsDb,
         databaseId: process.env.FIREBASE_DATABASE_ID || '(default)',
         mediaStorageProvider: storageProvider,
-        hasStorageBucket: !!process.env.FIREBASE_STORAGE_BUCKET
+        hasStorageBucket: storageProvider === 'supabase' ? !!process.env.SUPABASE_STORAGE_BUCKET : !!process.env.FIREBASE_STORAGE_BUCKET
       });
     } catch {
       res.json({
@@ -690,7 +699,7 @@ export async function createApp(): Promise<express.Express> {
 
       if (process.env.VERCEL && storageProvider.getProviderName() === 'local') {
         return res.status(503).json({
-          error: 'Persistent image storage is not configured for this deployment. For durable uploads on Vercel, please configure MEDIA_STORAGE_PROVIDER=firebase with FIREBASE_STORAGE_BUCKET.'
+          error: 'Persistent image storage is not configured for this deployment. For durable uploads on Vercel, please configure MEDIA_STORAGE_PROVIDER=supabase or MEDIA_STORAGE_PROVIDER=firebase.'
         });
       }
 

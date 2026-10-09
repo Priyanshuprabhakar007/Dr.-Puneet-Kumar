@@ -4,12 +4,6 @@ import { createApp } from '../server';
 let appPromise: Promise<any> | null = null;
 
 export default async function handler(req: Request, res: Response) {
-  if (!appPromise) {
-    appPromise = createApp();
-  }
-
-  const app = await appPromise;
-
   // Restore the original client request path if rewritten by Vercel
   let rawOriginal =
     (req.headers['x-matched-path'] as string) ||
@@ -36,6 +30,54 @@ export default async function handler(req: Request, res: Response) {
     }
     const cleanOriginal = rawOriginal.split('?')[0];
     req.url = cleanOriginal + search;
+  }
+
+  let app: any;
+  try {
+    if (!appPromise) {
+      appPromise = createApp();
+    }
+    app = await appPromise;
+  } catch (err: any) {
+    // Reset appPromise so subsequent requests can retry
+    appPromise = null;
+
+    // Sanitize error message to avoid leaking any credentials or secrets
+    let safeMessage = String(err?.message || 'Server initialization failed');
+    safeMessage = safeMessage
+      .replace(/-----BEGIN PRIVATE KEY-----[\s\S]*?-----END PRIVATE KEY-----/g, '[REDACTED_KEY]')
+      .replace(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, '[REDACTED_EMAIL]');
+
+    console.error('[Vercel Serverless Initialization Error]:', safeMessage);
+
+    const isApiRequest =
+      req.url.startsWith('/api/') ||
+      req.url === '/api' ||
+      (req.headers.accept && req.headers.accept.includes('application/json'));
+
+    if (isApiRequest) {
+      res.setHeader('Content-Type', 'application/json');
+      res.statusCode = 500;
+      return res.end(
+        JSON.stringify({
+          error: 'Application initialization error. Please verify server environment variables.',
+          message: safeMessage
+        })
+      );
+    }
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.statusCode = 500;
+    return res.end(`<!DOCTYPE html>
+<html lang="en">
+<head><title>System Initializing | Dr. Puneet Kumar Clinic</title><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; color: #1e293b;">
+  <div style="max-width: 480px; padding: 2rem; background: #fff; border-radius: 1rem; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); text-align: center;">
+    <h3 style="margin-top: 0; color: #0f172a;">Application Service Initializing</h3>
+    <p style="color: #64748b; font-size: 0.95rem; line-height: 1.5;">The clinic server is starting up. If this screen persists, please verify the deployment environment variables in the project dashboard.</p>
+  </div>
+</body>
+</html>`);
   }
 
   return app(req, res);

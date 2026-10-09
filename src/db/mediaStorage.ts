@@ -26,8 +26,13 @@ export class LocalMediaStorageProvider implements MediaStorageProvider {
 
   constructor(uploadsDir?: string) {
     this.uploadsDir = uploadsDir || path.resolve(process.cwd(), 'uploads');
-    if (!fs.existsSync(this.uploadsDir)) {
-      fs.mkdirSync(this.uploadsDir, { recursive: true });
+    // NEVER attempt to create directory on Vercel serverless read-only filesystem
+    if (!process.env.VERCEL && !fs.existsSync(this.uploadsDir)) {
+      try {
+        fs.mkdirSync(this.uploadsDir, { recursive: true });
+      } catch (err) {
+        console.warn('[LocalMediaStorage] Warning creating uploads directory:', err);
+      }
     }
   }
 
@@ -40,6 +45,10 @@ export class LocalMediaStorageProvider implements MediaStorageProvider {
     mimetype: string,
     originalName: string
   ): Promise<StorageUploadResult> {
+    if (process.env.VERCEL) {
+      throw new Error('Persistent image storage is not configured for this deployment.');
+    }
+
     const extMatch = originalName.match(/\.(jpg|jpeg|png|webp)$/i);
     const ext = extMatch
       ? extMatch[1].toLowerCase()
@@ -62,6 +71,10 @@ export class LocalMediaStorageProvider implements MediaStorageProvider {
   }
 
   async deleteImage(storageRefOrUrl: string): Promise<boolean> {
+    if (process.env.VERCEL) {
+      return false;
+    }
+
     try {
       let filename = storageRefOrUrl.startsWith('local:')
         ? storageRefOrUrl.replace('local:', '')
@@ -87,13 +100,19 @@ export class FirebaseMediaStorageProvider implements MediaStorageProvider {
 
   constructor(bucketName?: string) {
     this.bucketName = bucketName || process.env.FIREBASE_STORAGE_BUCKET || '';
-    if (!this.bucketName && process.env.NODE_ENV === 'production') {
-      throw new Error('[FirebaseMediaStorage] FIREBASE_STORAGE_BUCKET is required when MEDIA_STORAGE_PROVIDER=firebase');
-    }
   }
 
   getProviderName(): 'firebase' {
     return 'firebase';
+  }
+
+  private getBucket() {
+    const bucketName = this.bucketName || process.env.FIREBASE_STORAGE_BUCKET;
+    if (!bucketName) {
+      throw new Error('[FirebaseMediaStorage] FIREBASE_STORAGE_BUCKET is required when using Firebase Storage.');
+    }
+    getServerFirestore();
+    return getStorage().bucket(bucketName);
   }
 
   async uploadImage(
@@ -102,10 +121,7 @@ export class FirebaseMediaStorageProvider implements MediaStorageProvider {
     originalName: string,
     prefix = 'media'
   ): Promise<StorageUploadResult> {
-    // Ensure Firebase Admin is initialized
-    getServerFirestore();
-
-    const bucket = getStorage().bucket(this.bucketName || undefined);
+    const bucket = this.getBucket();
     const extMatch = originalName.match(/\.(jpg|jpeg|png|webp)$/i);
     const ext = extMatch
       ? extMatch[1].toLowerCase()
@@ -144,8 +160,7 @@ export class FirebaseMediaStorageProvider implements MediaStorageProvider {
 
   async deleteImage(storageRefOrUrl: string): Promise<boolean> {
     try {
-      getServerFirestore();
-      const bucket = getStorage().bucket(this.bucketName || undefined);
+      const bucket = this.getBucket();
       let objectPath = storageRefOrUrl;
       if (objectPath.startsWith('firebase:')) {
         objectPath = objectPath.replace('firebase:', '');

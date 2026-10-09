@@ -55,19 +55,16 @@ export async function createApp(): Promise<express.Express> {
     ];
     const missing = requiredEnv.filter((env) => !process.env[env]);
     if (missing.length > 0) {
-      console.error(`[Critical Configuration Error] Missing required production environment variables: ${missing.join(', ')}`);
-      process.exit(1);
+      throw new Error(`[Configuration] Missing required production environment variables: ${missing.join(', ')}`);
     }
 
     const storageProviderVal = (process.env.MEDIA_STORAGE_PROVIDER || '').toLowerCase().trim();
     if (storageProviderVal !== 'local' && storageProviderVal !== 'firebase') {
-      console.error(`[Critical Configuration Error] Invalid MEDIA_STORAGE_PROVIDER ("${process.env.MEDIA_STORAGE_PROVIDER}"). Must be "local" or "firebase".`);
-      process.exit(1);
+      throw new Error(`[Configuration] Invalid MEDIA_STORAGE_PROVIDER ("${process.env.MEDIA_STORAGE_PROVIDER}"). Must be "local" or "firebase".`);
     }
 
     if (storageProviderVal === 'firebase' && !process.env.FIREBASE_STORAGE_BUCKET) {
-      console.error('[Critical Configuration Error] FIREBASE_STORAGE_BUCKET is required in production when MEDIA_STORAGE_PROVIDER=firebase.');
-      process.exit(1);
+      throw new Error('[Configuration] FIREBASE_STORAGE_BUCKET is required in production when MEDIA_STORAGE_PROVIDER=firebase.');
     }
 
     try {
@@ -93,8 +90,7 @@ export async function createApp(): Promise<express.Express> {
       // Normalize to https://hostname[:port] without trailing slash
       process.env.PUBLIC_SITE_URL = `${parsed.protocol}//${parsed.host}`;
     } catch (err: any) {
-      console.error(`[Critical Configuration Error] Malformed or non-compliant PUBLIC_SITE_URL ("${process.env.PUBLIC_SITE_URL}"): ${err.message}`);
-      process.exit(1);
+      throw new Error(`[Configuration] Malformed or non-compliant PUBLIC_SITE_URL: ${err.message}`);
     }
   } else if (process.env.PUBLIC_SITE_URL && process.env.PUBLIC_SITE_URL.trim()) {
     try {
@@ -126,23 +122,20 @@ export async function createApp(): Promise<express.Express> {
     next();
   });
 
-  // Persistent Media Uploads Storage Setup
+  // Persistent Media Uploads: serve statically only when directory actually exists (standalone/VPS)
   const uploadsDir = path.resolve(process.cwd(), 'uploads');
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
+  if (!process.env.VERCEL && fs.existsSync(uploadsDir)) {
+    app.use(
+      '/uploads',
+      express.static(uploadsDir, {
+        maxAge: '1y',
+        immutable: true,
+        setHeaders: (res) => {
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+        }
+      })
+    );
   }
-
-  // Static serving of persistent user-uploaded media (with 1-year immutable caching)
-  app.use(
-    '/uploads',
-    express.static(uploadsDir, {
-      maxAge: '1y',
-      immutable: true,
-      setHeaders: (res) => {
-        res.setHeader('X-Content-Type-Options', 'nosniff');
-      }
-    })
-  );
 
   // Multer memory storage configuration with strict mime validation and 5MB file limit
   const upload = multer({
@@ -680,6 +673,13 @@ export async function createApp(): Promise<express.Express> {
       }
 
       const storageProvider = getMediaStorageProvider();
+
+      if (process.env.VERCEL && storageProvider.getProviderName() === 'local') {
+        return res.status(503).json({
+          error: 'Persistent image storage is not configured for this deployment. For durable uploads on Vercel, please configure MEDIA_STORAGE_PROVIDER=firebase with FIREBASE_STORAGE_BUCKET.'
+        });
+      }
+
       let uploadResult: any;
 
       // 1. Upload to storage provider (Local / Firebase)
@@ -895,7 +895,9 @@ ${allPages
         path.join(process.cwd(), 'index.html'),
         path.resolve(__dirname, '..', 'dist', 'index.html'),
         path.resolve(__dirname, 'dist', 'index.html'),
-        path.resolve(__dirname, 'index.html')
+        path.resolve(__dirname, 'index.html'),
+        path.join('/var/task', 'dist', 'index.html'),
+        path.join('/var/task', 'index.html')
       ];
       for (const p of candidates) {
         try {
@@ -907,7 +909,20 @@ ${allPages
           // continue
         }
       }
-      return '';
+
+      // Safe standalone fallback structure if filesystem access is unexpectedly restricted
+      cachedIndexHtml = `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dr. Puneet Kumar | Senior Physician & Diabetes Specialist</title>
+  </head>
+  <body class="font-sans antialiased text-slate-900 bg-gray-50">
+    <div id="root"></div>
+  </body>
+</html>`;
+      return cachedIndexHtml;
     }
 
     // Production static asset serving with long-lived immutable caching for hashed assets

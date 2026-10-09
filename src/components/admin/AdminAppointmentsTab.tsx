@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSite } from '../../context/SiteContext';
 import { AppointmentItem } from '../../types';
 import {
@@ -11,12 +11,25 @@ import {
   Trash2,
   CheckCircle2,
   Filter,
-  X
+  X,
+  RefreshCw
 } from 'lucide-react';
 
 export const AdminAppointmentsTab: React.FC = () => {
-  const { data, updateAppointmentStatus, submitAppointment, showToast } = useSite();
+  const {
+    data,
+    updateAppointmentStatus,
+    createAdminAppointment,
+    refreshAdminPrivateData,
+    isRefreshingPrivateData,
+    privateDataError,
+    showToast
+  } = useSite();
   const appointments = data.appointments || [];
+
+  useEffect(() => {
+    refreshAdminPrivateData();
+  }, [refreshAdminPrivateData]);
 
   const [filterStatus, setFilterStatus] = useState<string>('All');
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentItem | null>(null);
@@ -39,18 +52,34 @@ export const AdminAppointmentsTab: React.FC = () => {
   });
 
   const handleStatusChange = async (id: string, newStatus: AppointmentItem['status']) => {
-    await updateAppointmentStatus(id, newStatus);
-    showToast(`Appointment marked as ${newStatus}`, 'success');
+    const success = await updateAppointmentStatus(id, newStatus);
+    if (!success) {
+      showToast('Failed to update status', 'error');
+    }
   };
 
   const handleManualSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await submitAppointment({
+    const res = await createAdminAppointment({
       ...manualForm,
       status: 'Confirmed'
     });
-    setIsManualModalOpen(false);
-    showToast('Walk-in patient appointment booked!', 'success');
+    if (res.success) {
+      setIsManualModalOpen(false);
+      showToast('Walk-in patient appointment booked!', 'success');
+      setManualForm({
+        patientName: '',
+        phone: '',
+        age: '',
+        gender: 'Male',
+        concern: 'General Consultation',
+        preferredDate: new Date().toISOString().split('T')[0],
+        preferredTime: '10:00 AM - 12:00 PM',
+        message: 'Walk-in patient registered at clinic desk'
+      });
+    } else {
+      showToast(res.message || 'Failed to record walk-in patient', 'error');
+    }
   };
 
   return (
@@ -63,6 +92,15 @@ export const AdminAppointmentsTab: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => refreshAdminPrivateData()}
+            disabled={isRefreshingPrivateData}
+            className="inline-flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-2xl transition-colors cursor-pointer disabled:opacity-50"
+            title="Refresh Appointments"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingPrivateData ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
           <button
             onClick={() => setIsManualModalOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded-2xl shadow-xs transition-colors cursor-pointer"
@@ -98,7 +136,23 @@ export const AdminAppointmentsTab: React.FC = () => {
 
       {/* Appointments Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs overflow-hidden">
-        {filtered.length === 0 ? (
+        {isRefreshingPrivateData && appointments.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-slate-500 text-xs space-y-3">
+            <RefreshCw className="w-5 h-5 text-blue-600 animate-spin" />
+            <p className="font-semibold text-slate-700">Loading appointments queue...</p>
+          </div>
+        ) : privateDataError && appointments.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-xs space-y-3">
+            <p className="text-red-600 font-semibold">{privateDataError}</p>
+            <button
+              onClick={() => refreshAdminPrivateData()}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-700 hover:bg-blue-800 text-white rounded-2xl font-bold cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Retry</span>
+            </button>
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="text-center py-12 text-slate-400 text-xs">
             No appointment requests found in this category.
           </div>

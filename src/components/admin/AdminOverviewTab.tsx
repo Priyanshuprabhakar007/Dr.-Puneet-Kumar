@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useSite } from '../../context/SiteContext';
 import {
   Calendar,
@@ -9,13 +9,18 @@ import {
   ArrowRight,
   Clock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 
 export const AdminOverviewTab: React.FC<{ setActiveTab: (tab: string) => void }> = ({
   setActiveTab
 }) => {
-  const { data } = useSite();
+  const { data, refreshAdminPrivateData, isRefreshingPrivateData } = useSite();
+
+  useEffect(() => {
+    refreshAdminPrivateData();
+  }, [refreshAdminPrivateData]);
 
   const totalAppointments = data.appointments?.length || 0;
   const newAppointments = data.appointments?.filter((a) => a.status === 'New').length || 0;
@@ -41,12 +46,23 @@ export const AdminOverviewTab: React.FC<{ setActiveTab: (tab: string) => void }>
             You have <strong className="text-white">{newAppointments} new appointment requests</strong> waiting for clinical confirmation. All edits reflect immediately on the live website.
           </p>
         </div>
-        <button
-          onClick={() => setActiveTab('appointments')}
-          className="px-5 py-2.5 bg-white text-blue-900 hover:bg-blue-50 font-bold text-xs rounded-2xl shadow-xs shrink-0 cursor-pointer"
-        >
-          View Appointments
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => refreshAdminPrivateData()}
+            disabled={isRefreshingPrivateData}
+            className="px-4 py-2.5 bg-blue-800/80 hover:bg-blue-800 text-white font-semibold text-xs rounded-2xl shadow-xs transition-colors shrink-0 cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+            title="Refresh Data"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingPrivateData ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('appointments')}
+            className="px-5 py-2.5 bg-white text-blue-900 hover:bg-blue-50 font-bold text-xs rounded-2xl shadow-xs shrink-0 cursor-pointer"
+          >
+            View Appointments
+          </button>
+        </div>
       </div>
 
       {/* Metrics Row */}

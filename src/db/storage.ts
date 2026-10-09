@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { initialData } from '../data/initialData.js';
-import { AppData, Appointment, ContactLead, MediaItem } from '../types.js';
+import { AppData, Appointment, AppointmentStatus, ContactLead, MediaItem } from '../types.js';
 import {
   syncAppointmentToFirestore,
   removeAppointmentFromFirestore,
@@ -27,11 +27,18 @@ export async function getDatabaseAsync(forceRefresh = false): Promise<AppData> {
     if (fsData) {
       cachedData = {
         ...initialData,
+        ...cachedData,
         ...fsData,
         settings: { ...initialData.settings, ...(fsData.settings || {}) },
         doctorProfile: { ...initialData.doctorProfile, ...(fsData.doctorProfile || {}) },
         seo: { ...initialData.seo, ...(fsData.seo || {}) }
       };
+      if (Array.isArray(cachedData.appointments)) {
+        cachedData.appointments.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+      }
+      if (Array.isArray(cachedData.contactLeads)) {
+        cachedData.contactLeads.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+      }
       lastHydrationTime = now;
       return cachedData!;
     }
@@ -71,6 +78,12 @@ export async function initializeDatabase(): Promise<void> {
         doctorProfile: { ...initialData.doctorProfile, ...(fsData.doctorProfile || {}) },
         seo: { ...initialData.seo, ...(fsData.seo || {}) }
       };
+      if (Array.isArray(cachedData.appointments)) {
+        cachedData.appointments.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+      }
+      if (Array.isArray(cachedData.contactLeads)) {
+        cachedData.contactLeads.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+      }
       console.log('[Storage] Global database successfully hydrated from Firestore.');
     } else {
       if (process.env.NODE_ENV === 'production') {
@@ -97,14 +110,16 @@ export async function addAppointment(appointmentData: {
   preferredDate: string;
   preferredTime: string;
   message?: string;
+  status?: AppointmentStatus;
+  notes?: string;
 }): Promise<Appointment> {
   const db = await getDatabaseAsync();
   const newAppointment: Appointment = {
     id: 'apt-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
     ...appointmentData,
     submittedAt: new Date().toISOString(),
-    status: 'New',
-    notes: ''
+    status: appointmentData.status || 'New',
+    notes: appointmentData.notes || ''
   };
 
   // 1 & 2: Persist to Firestore first (throws on failure)

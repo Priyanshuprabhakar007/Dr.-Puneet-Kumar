@@ -417,7 +417,14 @@ export async function createApp(): Promise<express.Express> {
       }
       
       // Only after every required Firestore operation succeeds: saveDatabase
-      saveDatabase(updated);
+      // CRITICAL: Preserve existing appointments and contactLeads from current database
+      const currentDb = await getDatabaseAsync();
+      const preservedData = {
+        ...updated,
+        appointments: currentDb.appointments || [],
+        contactLeads: currentDb.contactLeads || []
+      };
+      saveDatabase(preservedData);
       
       res.json({ success: true, message: 'All content updated and synced to Firestore successfully' });
     } catch (err) {
@@ -470,12 +477,59 @@ export async function createApp(): Promise<express.Express> {
     }
   });
 
+  // Admin: Create Walk-in / Desk Appointment (Protected, whitelisted status)
+  app.post('/api/admin/appointments', requireAdmin, async (req, res) => {
+    try {
+      const { patientName, phone, age, gender, concern, preferredDate, preferredTime, message, status, notes } = req.body;
+
+      if (!patientName || typeof patientName !== 'string' || patientName.trim().length === 0 || patientName.length > 100) {
+        return res.status(400).json({ error: 'Valid patient name is required (max 100 chars)' });
+      }
+      if (!phone || typeof phone !== 'string' || phone.trim().length < 5 || phone.length > 25) {
+        return res.status(400).json({ error: 'Valid phone number is required' });
+      }
+      if (!preferredDate || typeof preferredDate !== 'string' || preferredDate.length > 50) {
+        return res.status(400).json({ error: 'Preferred date is required' });
+      }
+      if (!concern || typeof concern !== 'string' || concern.trim().length === 0 || concern.length > 500) {
+        return res.status(400).json({ error: 'Medical concern is required (max 500 chars)' });
+      }
+
+      const validStatuses = ['New', 'Contacted', 'Confirmed', 'Completed', 'Cancelled'];
+      const finalStatus = (status && validStatuses.includes(status)) ? status : 'Confirmed';
+
+      const appointment = await addAppointment({
+        patientName: patientName.trim(),
+        phone: phone.trim(),
+        age: age ? String(age).slice(0, 15) : 'Not specified',
+        gender: gender ? String(gender).slice(0, 25) : 'Unspecified',
+        concern: concern.trim(),
+        preferredDate,
+        preferredTime: preferredTime ? String(preferredTime).slice(0, 50) : 'Flexible',
+        message: message ? String(message).trim().slice(0, 1000) : '',
+        status: finalStatus,
+        notes: notes ? String(notes).trim().slice(0, 1000) : ''
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Walk-in patient appointment recorded successfully.',
+        appointment
+      });
+    } catch (err) {
+      console.error('Admin appointment creation error:', err);
+      res.status(500).json({ error: 'Failed to persist walk-in appointment' });
+    }
+  });
+
   app.get('/api/appointments', requireAdmin, async (req, res) => {
     try {
-      const db = await getDatabaseAsync();
+      // Force fresh Firestore read for serverless consistency across instances
+      const db = await getDatabaseAsync(true);
       const { status, search, exportType } = req.query;
 
-      let list = [...db.appointments];
+      let list = [...(db.appointments || [])];
+      list.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
 
       if (status && status !== 'All') {
         list = list.filter((a) => a.status.toLowerCase() === (status as string).toLowerCase());
@@ -639,8 +693,15 @@ export async function createApp(): Promise<express.Express> {
   });
 
   app.get('/api/contact-leads', requireAdmin, async (req, res) => {
-    const db = await getDatabaseAsync();
-    res.json(db.contactLeads);
+    try {
+      // Force fresh Firestore read for serverless consistency across instances
+      const db = await getDatabaseAsync(true);
+      let list = [...(db.contactLeads || [])];
+      list.sort((a, b) => new Date(b.submittedAt || 0).getTime() - new Date(a.submittedAt || 0).getTime());
+      res.json(list);
+    } catch (err) {
+      res.status(500).json({ error: 'Failed to fetch contact leads' });
+    }
   });
 
   // Admin: Update Contact Lead (Awaits persistence, strict field whitelist)

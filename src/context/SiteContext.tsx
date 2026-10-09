@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { initialData } from '../data/initialData';
-import { AppData, AppointmentStatus, Testimonial } from '../types';
+import { AppData, Appointment, AppointmentStatus, ContactLead, Testimonial } from '../types';
 
 interface SiteContextType {
   data: AppData;
@@ -10,8 +10,25 @@ interface SiteContextType {
   navigate: (path: string) => void;
   // Admin Authentication
   isAdminAuthenticated: boolean;
-  loginAdmin: () => void;
+  loginAdmin: () => Promise<void>;
   logoutAdmin: () => void;
+  // Private Admin Data
+  refreshAdminPrivateData: () => Promise<boolean>;
+  isRefreshingPrivateData: boolean;
+  privateDataError: string | null;
+  createAdminAppointment: (form: {
+    patientName: string;
+    phone: string;
+    age: string;
+    gender?: string;
+    concern: string;
+    preferredDate: string;
+    preferredTime: string;
+    message?: string;
+    status?: AppointmentStatus;
+    notes?: string;
+  }) => Promise<{ success: boolean; message: string; appointment?: Appointment }>;
+  updateContactLead: (id: string, updates: Partial<ContactLead>) => Promise<boolean>;
   // Dynamic Content Updating
   updateSection: <K extends keyof AppData>(section: K, value: AppData[K]) => Promise<boolean>;
   updateFullData: (newData: AppData) => Promise<boolean>;
@@ -63,6 +80,9 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isLoading, setIsLoading] = useState(true);
   const [isFirebaseConnected, setIsFirebaseConnected] = useState(true);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+  const [isRefreshingPrivateData, setIsRefreshingPrivateData] = useState(false);
+  const [privateDataError, setPrivateDataError] = useState<string | null>(null);
+
   const [currentPath, setCurrentPath] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return window.location.pathname || '/';
@@ -73,24 +93,6 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [toast, setToast] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [defaultConcern, setDefaultConcern] = useState('');
-
-  // Verify admin session cookie on startup
-  useEffect(() => {
-    async function checkAdmin() {
-      try {
-        const res = await fetch('/api/admin/verify', { credentials: 'include' });
-        if (res.ok) {
-          const json = await res.json();
-          if (json.valid) {
-            setIsAdminAuthenticated(true);
-          }
-        }
-      } catch {
-        setIsAdminAuthenticated(false);
-      }
-    }
-    checkAdmin();
-  }, []);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToast({ type, message });
@@ -118,7 +120,91 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Fetch initial content from API
+  // Hydrate private admin data (appointments & contact leads)
+  const refreshAdminPrivateData = useCallback(async (): Promise<boolean> => {
+    setIsRefreshingPrivateData(true);
+    setPrivateDataError(null);
+    try {
+      const [appointmentsRes, leadsRes] = await Promise.all([
+        fetch('/api/appointments', {
+          credentials: 'include',
+          cache: 'no-store'
+        }),
+        fetch('/api/contact-leads', {
+          credentials: 'include',
+          cache: 'no-store'
+        })
+      ]);
+
+      if (
+        appointmentsRes.status === 401 ||
+        appointmentsRes.status === 403 ||
+        leadsRes.status === 401 ||
+        leadsRes.status === 403
+      ) {
+        setIsAdminAuthenticated(false);
+        setData((prev) => ({
+          ...prev,
+          appointments: [],
+          contactLeads: []
+        }));
+        setPrivateDataError('Unauthorized admin session');
+        return false;
+      }
+
+      if (!appointmentsRes.ok || !leadsRes.ok) {
+        setPrivateDataError('Failed to load private appointments or contact inquiries.');
+        return false;
+      }
+
+      const appointments = await appointmentsRes.json();
+      const contactLeads = await leadsRes.json();
+
+      setData((prev) => ({
+        ...prev,
+        appointments: Array.isArray(appointments) ? appointments : [],
+        contactLeads: Array.isArray(contactLeads) ? contactLeads : []
+      }));
+      setPrivateDataError(null);
+      return true;
+    } catch (err) {
+      console.error('Error refreshing private admin data:', err);
+      setPrivateDataError('Network error while refreshing private data');
+      return false;
+    } finally {
+      setIsRefreshingPrivateData(false);
+    }
+  }, []);
+
+  // Verify admin session cookie on startup
+  useEffect(() => {
+    async function checkAdmin() {
+      try {
+        const res = await fetch('/api/admin/verify', { credentials: 'include' });
+        if (res.ok) {
+          const json = await res.json();
+          if (json.valid) {
+            setIsAdminAuthenticated(true);
+            refreshAdminPrivateData();
+          }
+        }
+      } catch {
+        setIsAdminAuthenticated(false);
+      }
+    }
+    checkAdmin();
+  }, [refreshAdminPrivateData]);
+
+  // Periodic private data refresh while admin is authenticated and in /admin
+  useEffect(() => {
+    if (!isAdminAuthenticated || currentPath !== '/admin') return;
+    const interval = setInterval(() => {
+      refreshAdminPrivateData();
+    }, 45000);
+    return () => clearInterval(interval);
+  }, [isAdminAuthenticated, currentPath, refreshAdminPrivateData]);
+
+  // Fetch initial public content from API
   useEffect(() => {
     let isMounted = true;
     async function loadContent() {
@@ -147,10 +233,11 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
-  const loginAdmin = useCallback(() => {
+  const loginAdmin = useCallback(async () => {
     setIsAdminAuthenticated(true);
     showToast('Admin authenticated successfully', 'success');
-  }, [showToast]);
+    await refreshAdminPrivateData();
+  }, [showToast, refreshAdminPrivateData]);
 
   const logoutAdmin = useCallback(async () => {
     try {
@@ -159,6 +246,11 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // ignore
     }
     setIsAdminAuthenticated(false);
+    setData((prev) => ({
+      ...prev,
+      appointments: [],
+      contactLeads: []
+    }));
     showToast('Logged out of Admin Portal', 'info');
     navigate('/');
   }, [showToast, navigate]);
@@ -219,6 +311,7 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     [showToast]
   );
 
+  // Public: Submit Appointment (Patient booking form)
   const submitAppointment = useCallback(
     async (form: {
       patientName: string;
@@ -238,13 +331,6 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
         const json = await res.json();
         if (res.ok && json.success) {
-          const apt = json.appointment;
-          if (apt) {
-            setData((prev) => ({
-              ...prev,
-              appointments: [apt, ...(prev.appointments || [])]
-            }));
-          }
           return {
             success: true,
             message: json.message || 'Thank you. Your appointment request has been received.'
@@ -253,6 +339,50 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { success: false, message: json.error || 'Could not submit appointment request' };
       } catch (err) {
         return { success: false, message: 'Network error. Please try again later.' };
+      }
+    },
+    []
+  );
+
+  // Admin: Create Walk-in / Desk Patient Appointment
+  const createAdminAppointment = useCallback(
+    async (form: {
+      patientName: string;
+      phone: string;
+      age: string;
+      gender?: string;
+      concern: string;
+      preferredDate: string;
+      preferredTime: string;
+      message?: string;
+      status?: AppointmentStatus;
+      notes?: string;
+    }) => {
+      try {
+        const res = await fetch('/api/admin/appointments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(form),
+          credentials: 'include'
+        });
+        const json = await res.json();
+        if (res.ok && json.success) {
+          const apt = json.appointment;
+          if (apt) {
+            setData((prev) => ({
+              ...prev,
+              appointments: [apt, ...(prev.appointments || []).filter((a) => a.id !== apt.id)]
+            }));
+          }
+          return {
+            success: true,
+            message: json.message || 'Walk-in appointment recorded successfully.',
+            appointment: apt
+          };
+        }
+        return { success: false, message: json.error || 'Failed to record walk-in appointment' };
+      } catch {
+        return { success: false, message: 'Network error while recording appointment.' };
       }
     },
     []
@@ -272,7 +402,7 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ...prev,
             appointments: (prev.appointments || []).map((a) => (a.id === id ? { ...a, status } : a))
           }));
-          showToast('Appointment status updated', 'success');
+          showToast(`Appointment status updated to ${status}`, 'success');
           return true;
         }
         showToast('Failed to update status', 'error');
@@ -305,7 +435,10 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             ...prev,
             testimonials: [json.testimonial, ...(prev.testimonials || [])]
           }));
-          return { success: true, message: json.message || 'Thank you! Your testimonial has been submitted and is pending review.' };
+          return {
+            success: true,
+            message: json.message || 'Thank you! Your testimonial has been submitted and is pending review.'
+          };
         }
         return { success: false, message: json.error || 'Failed to submit testimonial.' };
       } catch (err) {
@@ -325,13 +458,6 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
         const json = await res.json();
         if (res.ok && json.success) {
-          const lead = json.lead;
-          if (lead) {
-            setData((prev) => ({
-              ...prev,
-              contactLeads: [lead, ...(prev.contactLeads || [])]
-            }));
-          }
           return { success: true, message: json.message || 'Inquiry received. We will contact you soon.' };
         }
         return { success: false, message: json.error || 'Failed to submit inquiry' };
@@ -340,6 +466,33 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     },
     []
+  );
+
+  const updateContactLead = useCallback(
+    async (id: string, updates: Partial<ContactLead>) => {
+      try {
+        const res = await fetch(`/api/contact-leads/${id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates),
+          credentials: 'include'
+        });
+        if (res.ok) {
+          setData((prev) => ({
+            ...prev,
+            contactLeads: (prev.contactLeads || []).map((l) => (l.id === id ? { ...l, ...updates } : l))
+          }));
+          showToast('Contact lead updated', 'success');
+          return true;
+        }
+        showToast('Failed to update lead', 'error');
+        return false;
+      } catch {
+        showToast('Network error while updating lead', 'error');
+        return false;
+      }
+    },
+    [showToast]
   );
 
   const addMedia = useCallback(
@@ -430,6 +583,11 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isAdminAuthenticated,
         loginAdmin,
         logoutAdmin,
+        refreshAdminPrivateData,
+        isRefreshingPrivateData,
+        privateDataError,
+        createAdminAppointment,
+        updateContactLead,
         updateSection,
         updateFullData,
         submitAppointment,

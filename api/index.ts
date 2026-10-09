@@ -1,34 +1,5 @@
 import type { Request, Response } from 'express';
-import { createRequire } from 'node:module';
-import path from 'node:path';
-
-const runtimeRequire = createRequire(import.meta.url);
-
-type ServerBundle = {
-  createApp: () => Promise<any>;
-};
-
-function getServerBundle(): ServerBundle {
-  const candidates = [
-    '../dist/server.cjs',
-    path.join(process.cwd(), 'dist', 'server.cjs'),
-    './dist/server.cjs'
-  ];
-
-  let lastErr: any = null;
-  for (const candidate of candidates) {
-    try {
-      const mod = runtimeRequire(candidate) as ServerBundle;
-      if (mod && typeof mod.createApp === 'function') {
-        return mod;
-      }
-    } catch (e) {
-      lastErr = e;
-    }
-  }
-
-  throw new Error(`Built server bundle does not export createApp: ${lastErr?.message || 'Module not found'}`);
-}
+import { createApp } from './_app';
 
 let appPromise: Promise<any> | null = null;
 
@@ -64,7 +35,6 @@ export default async function handler(req: Request, res: Response) {
   let app: any;
   try {
     if (!appPromise) {
-      const { createApp } = getServerBundle();
       appPromise = createApp();
     }
     app = await appPromise;

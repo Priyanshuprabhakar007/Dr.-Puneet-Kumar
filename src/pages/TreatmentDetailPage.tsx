@@ -16,6 +16,7 @@ import {
   ShieldCheck,
   Sparkles
 } from 'lucide-react';
+import { LIVASA_SLOTS, AGGARWAL_SLOTS, getClinicForAppointmentTime } from '../utils/appointmentSlots.js';
 
 export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlug }) => {
   const { data, currentPath, navigate, submitAppointment, showToast, openAppointmentModal } = useSite();
@@ -30,7 +31,7 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
     age: '',
     gender: 'Prefer not to say',
     preferredDate: '',
-    preferredTime: '10:00 AM - 12:00 PM',
+    preferredTime: '10:00 AM',
     message: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,6 +74,15 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
       if (res.success) {
         setIsBookSuccess(true);
         showToast('Consultation request received!', 'success');
+        setBookingForm({
+          patientName: '',
+          phone: '',
+          age: '',
+          gender: 'Prefer not to say',
+          preferredDate: '',
+          preferredTime: '10:00 AM',
+          message: ''
+        });
       } else {
         setBookingError(res.message);
       }
@@ -384,7 +394,7 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
                   </div>
 
                   <div>
-                    <label htmlFor="detail-preferredTime" className="block text-slate-300 font-medium mb-1">Preferred Time</label>
+                    <label htmlFor="detail-preferredTime" className="block text-slate-300 font-medium mb-1">Preferred Time *</label>
                     <select
                       id="detail-preferredTime"
                       name="preferredTime"
@@ -392,13 +402,27 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
                       onChange={(e) =>
                         setBookingForm({ ...bookingForm, preferredTime: e.target.value })
                       }
-                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-2xl text-white focus:outline-none focus:border-blue-500 text-xs"
+                      className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-2xl text-white focus:outline-none focus:border-blue-500 text-xs font-medium"
                     >
-                      <option value="10:00 AM - 12:00 PM">10:00 AM - 12:00 PM</option>
-                      <option value="12:00 PM - 02:00 PM">12:00 PM - 02:00 PM</option>
-                      <option value="05:00 PM - 07:00 PM">05:00 PM - 07:00 PM</option>
-                      <option value="07:00 PM - 08:30 PM">07:00 PM - 08:30 PM</option>
+                      <optgroup label="Livasa Hospital — 10:00 AM to 5:00 PM" className="bg-slate-900 text-slate-300">
+                        {LIVASA_SLOTS.map((slot) => (
+                          <option key={slot.time} value={slot.time} className="bg-slate-800 text-white">
+                            {slot.time}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Aggarwal Clinic — 5:00 PM to 7:00 PM" className="bg-slate-900 text-slate-300">
+                        {AGGARWAL_SLOTS.map((slot) => (
+                          <option key={slot.time} value={slot.time} className="bg-slate-800 text-white">
+                            {slot.time}
+                          </option>
+                        ))}
+                      </optgroup>
                     </select>
+                    <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-blue-300 bg-blue-950/60 px-2.5 py-1 rounded-xl border border-blue-800/60">
+                      <span className="font-semibold text-slate-400">Clinic:</span>
+                      <span className="font-bold text-blue-300">{getClinicForAppointmentTime(bookingForm.preferredTime) || 'Livasa Hospital'}</span>
+                    </div>
                   </div>
 
                   <button
@@ -412,9 +436,9 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
               )}
 
               <div className="mt-4 pt-4 border-t border-slate-800 text-[11px] text-slate-400 space-y-1">
-                <p>📍 Sector 71, Mohali</p>
+                <p>📍 Livasa Hospital: 10:00 AM – 5:00 PM</p>
+                <p>📍 Aggarwal Clinic: 5:00 PM – 7:00 PM</p>
                 <p>📞 Phone: {settings.primaryPhone}</p>
-                <p>🕒 Timings: {settings.consultationTimings}</p>
               </div>
             </div>
           </div>

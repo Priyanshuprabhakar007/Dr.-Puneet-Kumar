@@ -109,6 +109,7 @@ export async function addAppointment(appointmentData: {
   concern: string;
   preferredDate: string;
   preferredTime: string;
+  clinicLocation?: string;
   message?: string;
   status?: AppointmentStatus;
   notes?: string;

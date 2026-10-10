@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Stethoscope
 } from 'lucide-react';
+import { LIVASA_SLOTS, AGGARWAL_SLOTS, getClinicForAppointmentTime } from '../../utils/appointmentSlots';
 
 export const AppointmentFormSection: React.FC = () => {
   const { data, submitAppointment, showToast } = useSite();
@@ -21,13 +22,19 @@ export const AppointmentFormSection: React.FC = () => {
     gender: 'Prefer not to say',
     concern: '',
     preferredDate: '',
-    preferredTime: '10:00 AM - 12:00 PM',
+    preferredTime: '10:00 AM',
     message: ''
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [submittedAppointment, setSubmittedAppointment] = useState<{
+    preferredDate: string;
+    preferredTime: string;
+    clinicLocation: string;
+    patientName: string;
+  } | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -56,6 +63,13 @@ export const AppointmentFormSection: React.FC = () => {
       const res = await submitAppointment(formData);
       if (res.success) {
         setIsSuccess(true);
+        const clinic = res.appointment?.clinicLocation || getClinicForAppointmentTime(formData.preferredTime) || 'Livasa Hospital';
+        setSubmittedAppointment({
+          preferredDate: formData.preferredDate,
+          preferredTime: formData.preferredTime,
+          clinicLocation: clinic,
+          patientName: formData.patientName
+        });
         showToast('Appointment request received! We will call you.', 'success');
         setFormData({
           patientName: '',
@@ -64,7 +78,7 @@ export const AppointmentFormSection: React.FC = () => {
           gender: 'Prefer not to say',
           concern: '',
           preferredDate: '',
-          preferredTime: '10:00 AM - 12:00 PM',
+          preferredTime: '10:00 AM',
           message: ''
         });
       } else {
@@ -96,7 +110,7 @@ export const AppointmentFormSection: React.FC = () => {
             </h2>
 
             <p className="text-base text-slate-300 leading-relaxed">
-              Schedule your appointment with Dr. Puneet Kumar at Sector 71, Mohali. Our desk verifies every submission within clinic operating hours to ensure minimal waiting times.
+              Schedule your appointment with Dr. Puneet Kumar. Livasa Hospital: 10:00 AM – 5:00 PM | Aggarwal Clinic: 5:00 PM – 7:00 PM. Our desk verifies every submission within clinic operating hours to ensure minimal waiting times.
             </p>
 
             <div className="space-y-3.5 pt-2">
@@ -160,13 +174,28 @@ export const AppointmentFormSection: React.FC = () => {
                   <div className="w-14 h-14 bg-green-100 text-green-600 rounded-2xl flex items-center justify-center mx-auto shadow-inner">
                     <CheckCircle2 className="w-8 h-8" />
                   </div>
-                  <h4 className="text-xl font-bold text-slate-800">Booking Request Received</h4>
+                  <h4 className="text-xl font-bold text-slate-800">Appointment Request Received</h4>
+                  {submittedAppointment && (
+                    <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-left text-xs space-y-2 max-w-md mx-auto">
+                      <p className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Preferred Appointment</p>
+                      <p className="text-sm font-bold text-slate-900">
+                        {submittedAppointment.preferredDate} at {submittedAppointment.preferredTime}
+                      </p>
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-100 text-blue-800 font-bold">
+                        <span>Clinic:</span>
+                        <span>{submittedAppointment.clinicLocation}</span>
+                      </div>
+                    </div>
+                  )}
                   <p className="text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-                    Thank you. We have logged your request. Our clinical receptionist will reach out to confirm your slot.
+                    Thank you. We have logged your request. Our clinical receptionist will reach out via phone or WhatsApp to verify and confirm your consultation slot.
                   </p>
                   <button
-                    onClick={() => setIsSuccess(false)}
-                    className="mt-4 px-6 py-2.5 bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold rounded-2xl"
+                    onClick={() => {
+                      setIsSuccess(false);
+                      setSubmittedAppointment(null);
+                    }}
+                    className="mt-4 px-6 py-2.5 bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold rounded-2xl cursor-pointer"
                   >
                     Submit Another Request
                   </button>
@@ -296,7 +325,7 @@ export const AppointmentFormSection: React.FC = () => {
 
                     <div>
                       <label htmlFor="sec-preferredTime" className="block text-xs font-bold text-slate-700 mb-1">
-                        Preferred Slot
+                        Preferred Slot *
                       </label>
                       <div className="relative">
                         <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -305,13 +334,27 @@ export const AppointmentFormSection: React.FC = () => {
                           name="preferredTime"
                           value={formData.preferredTime}
                           onChange={(e) => setFormData({ ...formData, preferredTime: e.target.value })}
-                          className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                          className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium"
                         >
-                          <option value="10:00 AM - 12:00 PM">Morning (10:00 AM - 12:00 PM)</option>
-                          <option value="12:00 PM - 02:00 PM">Noon (12:00 PM - 02:00 PM)</option>
-                          <option value="05:00 PM - 07:00 PM">Evening (05:00 PM - 07:00 PM)</option>
-                          <option value="07:00 PM - 08:30 PM">Late Evening (07:00 PM - 08:30 PM)</option>
+                          <optgroup label="Livasa Hospital — 10:00 AM to 5:00 PM">
+                            {LIVASA_SLOTS.map((slot) => (
+                              <option key={slot.time} value={slot.time}>
+                                {slot.time}
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Aggarwal Clinic — 5:00 PM to 7:00 PM">
+                            {AGGARWAL_SLOTS.map((slot) => (
+                              <option key={slot.time} value={slot.time}>
+                                {slot.time}
+                              </option>
+                            ))}
+                          </optgroup>
                         </select>
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-1.5 text-xs text-blue-700 bg-blue-50 px-2.5 py-1 rounded-xl border border-blue-100">
+                        <span className="font-semibold">Clinic:</span>
+                        <span className="font-bold">{getClinicForAppointmentTime(formData.preferredTime) || 'Livasa Hospital'}</span>
                       </div>
                     </div>
                   </div>

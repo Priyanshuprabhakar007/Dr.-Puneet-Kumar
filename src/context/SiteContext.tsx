@@ -42,7 +42,7 @@ interface SiteContextType {
     preferredDate: string;
     preferredTime: string;
     message?: string;
-  }) => Promise<{ success: boolean; message: string }>;
+  }) => Promise<{ success: boolean; message: string; appointment?: Appointment }>;
   updateAppointmentStatus: (id: string, status: AppointmentStatus) => Promise<boolean>;
   submitContact: (form: {
     name: string;
@@ -333,7 +333,8 @@ export const SiteProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (res.ok && json.success) {
           return {
             success: true,
-            message: json.message || 'Thank you. Your appointment request has been received.'
+            message: json.message || 'Thank you. Your appointment request has been received.',
+            appointment: json.appointment
           };
         }
         return { success: false, message: json.error || 'Could not submit appointment request' };

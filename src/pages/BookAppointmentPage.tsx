@@ -13,7 +13,7 @@ export const BookAppointmentPage: React.FC = () => {
             Schedule Doctor Consultation
           </h1>
           <p className="text-sm text-blue-200 mt-2">
-            Dr. Puneet Kumar • Senior Physician & Diabetes Specialist • Sector 71, Mohali
+            Dr. Puneet Kumar • Livasa Hospital: 10:00 AM – 5:00 PM | Aggarwal Clinic: 5:00 PM – 7:00 PM
           </p>
         </div>
       </div>

@@ -50,6 +50,11 @@
           "description": "Requested consultation time slot",
           "maxLength": 50
         },
+        "clinicLocation": {
+          "type": "string",
+          "description": "Clinic location for consultation (Livasa Hospital or Aggarwal Clinic)",
+          "maxLength": 100
+        },
         "message": {
           "type": "string",
           "description": "Optional patient notes or message",

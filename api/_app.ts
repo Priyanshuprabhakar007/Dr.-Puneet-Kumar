@@ -21,6 +21,7 @@ import {
 import { syncSectionToFirestore, getServerFirestore } from '../src/db/firebaseServer.js';
 import { getMediaStorageProvider } from '../src/db/mediaStorage.js';
 import { getPublicOrigin, getSeoForPath, buildInjectedHtml, escapeHtml, formatW3CDate } from '../src/utils/seo.js';
+import { getClinicForAppointmentTime, isValidAppointmentTime } from '../src/utils/appointmentSlots.js';
 
 const getModuleDir = (): string => {
   if (typeof __dirname !== 'undefined') {
@@ -454,6 +455,15 @@ export async function createApp(): Promise<express.Express> {
       if (!concern || typeof concern !== 'string' || concern.trim().length === 0 || concern.length > 500) {
         return res.status(400).json({ error: 'Medical concern is required (max 500 chars)' });
       }
+      if (!preferredTime || typeof preferredTime !== 'string' || !isValidAppointmentTime(preferredTime.trim())) {
+        return res.status(400).json({ error: 'Invalid appointment time slot.' });
+      }
+
+      const canonicalTime = preferredTime.trim();
+      const clinicLocation = getClinicForAppointmentTime(canonicalTime);
+      if (!clinicLocation) {
+        return res.status(400).json({ error: 'Invalid appointment time slot.' });
+      }
 
       const appointment = await addAppointment({
         patientName: patientName.trim(),
@@ -462,7 +472,8 @@ export async function createApp(): Promise<express.Express> {
         gender: gender ? String(gender).slice(0, 25) : 'Unspecified',
         concern: concern.trim(),
         preferredDate,
-        preferredTime: preferredTime ? String(preferredTime).slice(0, 50) : 'Flexible',
+        preferredTime: canonicalTime,
+        clinicLocation,
         message: message ? String(message).trim().slice(0, 1000) : ''
       });
 
@@ -494,6 +505,15 @@ export async function createApp(): Promise<express.Express> {
       if (!concern || typeof concern !== 'string' || concern.trim().length === 0 || concern.length > 500) {
         return res.status(400).json({ error: 'Medical concern is required (max 500 chars)' });
       }
+      if (!preferredTime || typeof preferredTime !== 'string' || !isValidAppointmentTime(preferredTime.trim())) {
+        return res.status(400).json({ error: 'Invalid appointment time slot.' });
+      }
+
+      const canonicalTime = preferredTime.trim();
+      const clinicLocation = getClinicForAppointmentTime(canonicalTime);
+      if (!clinicLocation) {
+        return res.status(400).json({ error: 'Invalid appointment time slot.' });
+      }
 
       const validStatuses = ['New', 'Contacted', 'Confirmed', 'Completed', 'Cancelled'];
       const finalStatus = (status && validStatuses.includes(status)) ? status : 'Confirmed';
@@ -505,7 +525,8 @@ export async function createApp(): Promise<express.Express> {
         gender: gender ? String(gender).slice(0, 25) : 'Unspecified',
         concern: concern.trim(),
         preferredDate,
-        preferredTime: preferredTime ? String(preferredTime).slice(0, 50) : 'Flexible',
+        preferredTime: canonicalTime,
+        clinicLocation,
         message: message ? String(message).trim().slice(0, 1000) : '',
         status: finalStatus,
         notes: notes ? String(notes).trim().slice(0, 1000) : ''
@@ -546,9 +567,9 @@ export async function createApp(): Promise<express.Express> {
       }
 
       if (exportType === 'csv') {
-        const headers = ['ID,Patient Name,Phone,Age,Gender,Concern,Preferred Date,Preferred Time,Status,Submitted At,Notes'];
+        const headers = ['ID,Patient Name,Phone,Age,Gender,Concern,Appointment Date,Appointment Time,Clinic Location,Status,Submitted At,Notes'];
         const rows = list.map((a) => {
-          return `"${a.id}","${a.patientName.replace(/"/g, '""')}","${a.phone}","${a.age}","${a.gender || ''}","${(a.concern || '').replace(/"/g, '""')}","${a.preferredDate}","${a.preferredTime}","${a.status}","${a.submittedAt}","${(a.notes || '').replace(/"/g, '""')}"`;
+          return `"${a.id}","${a.patientName.replace(/"/g, '""')}","${a.phone}","${a.age}","${a.gender || ''}","${(a.concern || '').replace(/"/g, '""')}","${a.preferredDate}","${a.preferredTime}","${(a.clinicLocation || 'Not assigned / Legacy appointment').replace(/"/g, '""')}","${a.status}","${a.submittedAt}","${(a.notes || '').replace(/"/g, '""')}"`;
         });
         const csv = [headers, ...rows].join('\n');
 
@@ -572,7 +593,14 @@ export async function createApp(): Promise<express.Express> {
       if (status !== undefined) updates.status = String(status).slice(0, 30);
       if (notes !== undefined) updates.notes = String(notes).slice(0, 1000);
       if (preferredDate !== undefined) updates.preferredDate = String(preferredDate).slice(0, 50);
-      if (preferredTime !== undefined) updates.preferredTime = String(preferredTime).slice(0, 50);
+      if (preferredTime !== undefined) {
+        const timeStr = String(preferredTime).trim();
+        if (!isValidAppointmentTime(timeStr)) {
+          return res.status(400).json({ error: 'Invalid appointment time slot.' });
+        }
+        updates.preferredTime = timeStr;
+        updates.clinicLocation = getClinicForAppointmentTime(timeStr) || 'Livasa Hospital';
+      }
 
       const updated = await updateAppointment(id, updates);
       if (!updated) {

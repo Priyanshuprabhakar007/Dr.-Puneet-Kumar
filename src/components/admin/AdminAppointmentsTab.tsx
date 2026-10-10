@@ -14,6 +14,7 @@ import {
   X,
   RefreshCw
 } from 'lucide-react';
+import { LIVASA_SLOTS, AGGARWAL_SLOTS, getClinicForAppointmentTime } from '../../utils/appointmentSlots';
 
 export const AdminAppointmentsTab: React.FC = () => {
   const {
@@ -42,7 +43,7 @@ export const AdminAppointmentsTab: React.FC = () => {
     gender: 'Male',
     concern: 'General Consultation',
     preferredDate: new Date().toISOString().split('T')[0],
-    preferredTime: '10:00 AM - 12:00 PM',
+    preferredTime: '10:00 AM',
     message: 'Walk-in patient registered at clinic desk'
   });
 
@@ -74,7 +75,7 @@ export const AdminAppointmentsTab: React.FC = () => {
         gender: 'Male',
         concern: 'General Consultation',
         preferredDate: new Date().toISOString().split('T')[0],
-        preferredTime: '10:00 AM - 12:00 PM',
+        preferredTime: '10:00 AM',
         message: 'Walk-in patient registered at clinic desk'
       });
     } else {
@@ -161,7 +162,7 @@ export const AdminAppointmentsTab: React.FC = () => {
             <thead className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
               <tr>
                 <th className="p-4">Patient Name & Contact</th>
-                <th className="p-4">Requested Slot</th>
+                <th className="p-4">Appointment Slot</th>
                 <th className="p-4">Clinical Concern</th>
                 <th className="p-4">Status</th>
                 <th className="p-4 text-right">Quick Contact / Actions</th>
@@ -187,7 +188,22 @@ export const AdminAppointmentsTab: React.FC = () => {
 
                     <td className="p-4">
                       <p className="font-bold text-slate-800">{apt.preferredDate}</p>
-                      <p className="text-[11px] text-slate-500">{apt.preferredTime}</p>
+                      <p className="text-[11px] font-semibold text-slate-700">{apt.preferredTime}</p>
+                      <div className="mt-1">
+                        {apt.clinicLocation === 'Livasa Hospital' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            Livasa Hospital
+                          </span>
+                        ) : apt.clinicLocation === 'Aggarwal Clinic' ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Aggarwal Clinic
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200">
+                            {apt.clinicLocation || 'Not assigned / Legacy appointment'}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     <td className="p-4">
@@ -295,11 +311,39 @@ export const AdminAppointmentsTab: React.FC = () => {
                 </div>
               </div>
 
-              <div>
-                <span className="text-slate-400 block">Slot</span>
-                <span className="font-semibold text-slate-800">
-                  {selectedAppointment.preferredDate} at {selectedAppointment.preferredTime}
-                </span>
+              <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold uppercase tracking-wider">Appointment Date</span>
+                    <span className="font-bold text-slate-900 text-sm">
+                      {selectedAppointment.preferredDate}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px] font-bold uppercase tracking-wider">Allocated Slot</span>
+                    <span className="font-bold text-blue-700 text-sm">
+                      {selectedAppointment.preferredTime}
+                    </span>
+                  </div>
+                </div>
+                <div className="pt-2 border-t border-slate-200/60">
+                  <span className="text-slate-400 block text-[10px] font-bold uppercase tracking-wider">Clinic Location</span>
+                  <div className="mt-0.5">
+                    {selectedAppointment.clinicLocation === 'Livasa Hospital' ? (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-100 text-blue-800">
+                        Livasa Hospital
+                      </span>
+                    ) : selectedAppointment.clinicLocation === 'Aggarwal Clinic' ? (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-800">
+                        Aggarwal Clinic
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-medium bg-slate-200 text-slate-600">
+                        {selectedAppointment.clinicLocation || 'Not assigned / Legacy appointment'}
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -393,7 +437,22 @@ export const AdminAppointmentsTab: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-slate-700 mb-1">Date</label>
+                  <label className="block font-bold text-slate-700 mb-1">Gender</label>
+                  <select
+                    value={manualForm.gender}
+                    onChange={(e) => setManualForm({ ...manualForm, gender: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl"
+                  >
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Date *</label>
                   <input
                     type="date"
                     required
@@ -404,6 +463,36 @@ export const AdminAppointmentsTab: React.FC = () => {
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl"
                   />
                 </div>
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Appointment Slot *</label>
+                  <select
+                    value={manualForm.preferredTime}
+                    onChange={(e) =>
+                      setManualForm({ ...manualForm, preferredTime: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl font-medium"
+                  >
+                    <optgroup label="Livasa Hospital — 10:00 AM to 5:00 PM">
+                      {LIVASA_SLOTS.map((slot) => (
+                        <option key={slot.time} value={slot.time}>
+                          {slot.time}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Aggarwal Clinic — 5:00 PM to 7:00 PM">
+                      {AGGARWAL_SLOTS.map((slot) => (
+                        <option key={slot.time} value={slot.time}>
+                          {slot.time}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 text-[11px] text-blue-700 bg-blue-50 px-2.5 py-1 rounded-xl border border-blue-100">
+                <span className="font-semibold">Assigned Clinic:</span>
+                <span className="font-bold">{getClinicForAppointmentTime(manualForm.preferredTime) || 'Livasa Hospital'}</span>
               </div>
 
               <div>
@@ -418,7 +507,7 @@ export const AdminAppointmentsTab: React.FC = () => {
 
               <button
                 type="submit"
-                className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-2xl"
+                className="w-full py-2.5 bg-blue-700 hover:bg-blue-800 text-white font-bold rounded-2xl cursor-pointer"
               >
                 Register Walk-in Slot
               </button>

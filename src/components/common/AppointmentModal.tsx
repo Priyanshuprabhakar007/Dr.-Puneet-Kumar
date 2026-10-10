@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSite } from '../../context/SiteContext';
 import { X, Calendar, Clock, User, Phone, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
+import { LIVASA_SLOTS, AGGARWAL_SLOTS, getClinicForAppointmentTime } from '../../utils/appointmentSlots';
 
 export const AppointmentModal: React.FC = () => {
   const {
@@ -19,13 +20,18 @@ export const AppointmentModal: React.FC = () => {
     gender: 'Prefer not to say',
     concern: '',
     preferredDate: '',
-    preferredTime: '10:00 AM - 12:00 PM',
+    preferredTime: '10:00 AM',
     message: ''
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [submittedAppointment, setSubmittedAppointment] = useState<{
+    preferredDate: string;
+    preferredTime: string;
+    clinicLocation: string;
+  } | null>(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
@@ -129,6 +135,12 @@ export const AppointmentModal: React.FC = () => {
       const res = await submitAppointment(formData);
       if (res.success) {
         setIsSuccess(true);
+        const clinic = res.appointment?.clinicLocation || getClinicForAppointmentTime(formData.preferredTime) || 'Livasa Hospital';
+        setSubmittedAppointment({
+          preferredDate: formData.preferredDate,
+          preferredTime: formData.preferredTime,
+          clinicLocation: clinic
+        });
         showToast('Appointment request received!', 'success');
       } else {
         setErrorMessage(res.message);
@@ -169,7 +181,9 @@ export const AppointmentModal: React.FC = () => {
               <h3 id="modal-headline" className="text-base font-bold tracking-tight font-display">
                 Request Doctor Consultation
               </h3>
-              <p className="text-xs text-blue-100/90 font-medium">Dr. Puneet Kumar Clinic • Sector 69 Mohali</p>
+              <p className="text-xs text-blue-100/90 font-medium">
+                Dr. Puneet Kumar • Mohali • {getClinicForAppointmentTime(formData.preferredTime) || 'Livasa Hospital'}
+              </p>
             </div>
           </div>
           <button
@@ -189,6 +203,18 @@ export const AppointmentModal: React.FC = () => {
                 <CheckCircle2 className="w-8 h-8" />
               </div>
               <h4 className="text-xl font-bold text-slate-800 font-display">Appointment Request Received</h4>
+              {submittedAppointment && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl text-left text-xs space-y-1.5 max-w-sm mx-auto">
+                  <p className="font-semibold text-slate-500 uppercase tracking-wider text-[10px]">Preferred Appointment</p>
+                  <p className="text-sm font-bold text-slate-900">
+                    {submittedAppointment.preferredDate} at {submittedAppointment.preferredTime}
+                  </p>
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-100 text-blue-800 font-bold text-xs">
+                    <span>Clinic:</span>
+                    <span>{submittedAppointment.clinicLocation}</span>
+                  </div>
+                </div>
+              )}
               <p className="text-sm text-slate-600 max-w-sm mx-auto leading-relaxed">
                 Thank you, <span className="font-bold text-slate-900">{formData.patientName}</span>.
                 Our clinical coordinator will call you at <span className="font-bold text-slate-900">{formData.phone}</span> to confirm your consultation time slot.
@@ -335,7 +361,7 @@ export const AppointmentModal: React.FC = () => {
 
                 <div>
                   <label htmlFor="modal-preferredTime" className="block text-xs font-semibold text-slate-700 mb-1">
-                    Preferred Time Slot
+                    Preferred Time Slot *
                   </label>
                   <div className="relative">
                     <Clock className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -344,13 +370,27 @@ export const AppointmentModal: React.FC = () => {
                       name="preferredTime"
                       value={formData.preferredTime}
                       onChange={(e) => setFormData({ ...formData, preferredTime: e.target.value })}
-                      className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                      className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 font-medium"
                     >
-                      <option value="10:00 AM - 12:00 PM">Morning (10:00 AM - 12:00 PM)</option>
-                      <option value="12:00 PM - 02:00 PM">Afternoon (12:00 PM - 02:00 PM)</option>
-                      <option value="05:00 PM - 07:00 PM">Evening (05:00 PM - 07:00 PM)</option>
-                      <option value="07:00 PM - 08:30 PM">Late Evening (07:00 PM - 08:30 PM)</option>
+                      <optgroup label="Livasa Hospital — 10:00 AM to 5:00 PM">
+                        {LIVASA_SLOTS.map((slot) => (
+                          <option key={slot.time} value={slot.time}>
+                            {slot.time}
+                          </option>
+                        ))}
+                      </optgroup>
+                      <optgroup label="Aggarwal Clinic — 5:00 PM to 7:00 PM">
+                        {AGGARWAL_SLOTS.map((slot) => (
+                          <option key={slot.time} value={slot.time}>
+                            {slot.time}
+                          </option>
+                        ))}
+                      </optgroup>
                     </select>
+                  </div>
+                  <div className="mt-1 flex items-center gap-1.5 text-[11px] text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100">
+                    <span className="font-semibold">Clinic:</span>
+                    <span className="font-bold">{getClinicForAppointmentTime(formData.preferredTime) || 'Livasa Hospital'}</span>
                   </div>
                 </div>
               </div>

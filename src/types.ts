@@ -112,6 +112,7 @@ export interface Appointment {
   concern: string;
   preferredDate: string;
   preferredTime: string;
+  clinicLocation?: string;
   message?: string;
   submittedAt?: string;
   createdAt?: string;

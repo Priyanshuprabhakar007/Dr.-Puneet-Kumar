@@ -59,43 +59,30 @@ export const initialData: AppData = {
   qualifications: [
     {
       id: 'q-1',
-      degree: 'MD (Doctor of Medicine) - Internal Medicine',
-      institution: 'Renowned Government Medical College & Hospital',
-      year: '2014',
-      description: 'Comprehensive 3-year post-graduate residency focusing on acute emergency medicine, intensive care, complex diagnostics, and multi-system chronic disease management.',
-      order: 1
+      degree: 'Fellowship in Diabetes Mellitus',
+      institution: 'Medvarsity Apollo',
+      year: 'March 2019',
+      description: 'Fellowship in Diabetes Mellitus from Medvarsity Apollo.',
+      order: 1,
+      accreditation: 'Royal Liverpool Academy, UK'
     },
     {
       id: 'q-2',
-      degree: 'Fellowship in Diabetes Mellitus (FIDM)',
-      institution: 'Premier Diabetes Education & Research Academy',
-      year: '2016',
-      description: 'Advanced clinical fellowship addressing clinical diabetology, insulin pump therapy, CGMS, gestational diabetes, and diabetic micro/macro-vascular complication mitigation.',
-      order: 2
+      degree: 'M.D. Medicine',
+      institution: 'D.M.C.H. Ludhiana',
+      year: 'June 2016',
+      description: 'M.D. Medicine from D.M.C.H. Ludhiana.',
+      order: 2,
+      university: 'BFUHS, Faridkot'
     },
     {
       id: 'q-3',
-      degree: 'MBBS (Bachelor of Medicine & Bachelor of Surgery)',
-      institution: 'Prestigious Medical University',
-      year: '2010',
-      description: 'Rigorous foundational medical and surgical training followed by a comprehensive rotating clinical internship across all core medical specialties.',
-      order: 3
-    },
-    {
-      id: 'q-4',
-      degree: 'Postgraduate Certificate in Hypertension & Cardio-Metabolic Health',
-      institution: 'National Medical Council & Specialty Board',
-      year: '2018',
-      description: 'Specialized clinical certification in ambulatory blood pressure monitoring, resistant hypertension protocols, and cardiac risk assessment in diabetic patients.',
-      order: 4
-    },
-    {
-      id: 'q-5',
-      degree: 'Advanced Certification in Thyroid & Endocrine Disorders',
-      institution: 'Endocrine Society of Clinical Practitioners',
-      year: '2020',
-      description: 'In-depth protocols for subclinical hypothyroidism, Hashimoto’s thyroiditis, nodular thyroid diseases, and pregnancy-associated thyroid abnormalities.',
-      order: 5
+      degree: 'MBBS',
+      institution: 'Adesh Institute of Medical Science and Research, Bathinda',
+      year: 'December 2011',
+      description: 'MBBS from Adesh Institute of Medical Science and Research, Bathinda.',
+      order: 3,
+      university: 'BFUHS, Faridkot'
     }
   ],
   experience: [

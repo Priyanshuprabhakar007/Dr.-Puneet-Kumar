@@ -51,6 +51,8 @@ export interface Qualification {
   year?: string;
   description: string;
   order: number;
+  university?: string;
+  accreditation?: string;
 }
 
 export interface Experience {

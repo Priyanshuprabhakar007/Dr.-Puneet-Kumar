@@ -1,7 +1,16 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { useSite } from '../../context/SiteContext';
-import { Award, GraduationCap, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Award, GraduationCap, CheckCircle2 } from 'lucide-react';
+
+const achievements = [
+  'Gold Medalist (MBBS)',
+  'Distinction Holder & University Topper in Pathology during MBBS',
+  'University 3rd Rank in ENT during MBBS',
+  'Meritorious & Scholarship Holder',
+  'Presented Paper and Poster Presentations at medical conferences',
+  'Attended conferences on Critical Care, Diabetes and recent advances in Medicine'
+];
 
 export const QualificationsSection: React.FC = () => {
   const { data } = useSite();
@@ -27,7 +36,7 @@ export const QualificationsSection: React.FC = () => {
             Qualifications & Medical Training
           </h2>
           <p className="text-base text-slate-600 leading-relaxed font-normal">
-            Dr. Puneet Kumar holds post-graduate training in Internal Medicine and advanced post-doctoral fellowships in clinical diabetology.
+            Dr. Puneet Kumar completed his MBBS and M.D. Medicine under BFUHS, Faridkot, followed by a Fellowship in Diabetes Mellitus from Medvarsity Apollo.
           </p>
         </motion.div>
 
@@ -62,12 +71,47 @@ export const QualificationsSection: React.FC = () => {
                   {item.description}
                 </p>
               </div>
+
               <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-1.5 text-[11px] font-semibold text-green-700">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Verified Clinical Board Qualification</span>
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span>
+                  {item.university
+                    ? `University: ${item.university}`
+                    : item.accreditation
+                    ? `Accredited by: ${item.accreditation}`
+                    : 'Verified Medical Qualification'}
+                </span>
               </div>
             </motion.div>
           ))}
+        </div>
+
+        {/* Academic Achievements Subsection */}
+        <div className="mt-16 pt-12 border-t border-slate-200/80">
+          <div className="text-center max-w-xl mx-auto mb-8 space-y-1.5">
+            <h3 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Academic Achievements
+            </h3>
+            <p className="text-xs text-slate-500">
+              Verified university honors, academic distinctions, and scientific presentations
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-w-5xl mx-auto">
+            {achievements.map((item, idx) => (
+              <div
+                key={idx}
+                className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-2xs flex items-start gap-3 hover:border-slate-300 transition-colors"
+              >
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0 mt-0.5">
+                  <Award className="w-4 h-4" />
+                </div>
+                <p className="text-xs font-semibold text-slate-800 leading-snug">
+                  {item}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </section>

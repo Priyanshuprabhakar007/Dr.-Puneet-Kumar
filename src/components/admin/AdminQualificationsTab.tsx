@@ -86,7 +86,9 @@ export const AdminQualificationsTab: React.FC = () => {
                 institution: 'Medical College / Institute',
                 year: '2024',
                 description: 'Specialization details and clinical honors.',
-                order: qualifications.length + 1
+                order: qualifications.length + 1,
+                university: '',
+                accreditation: ''
               })
             }
             className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs rounded-2xl cursor-pointer"
@@ -108,6 +110,16 @@ export const AdminQualificationsTab: React.FC = () => {
                 </span>
                 <h4 className="font-bold text-slate-900 text-sm mt-1">{q.degree}</h4>
                 <p className="text-xs text-slate-600 font-medium">{q.institution}</p>
+                {q.university && (
+                  <p className="text-[11px] font-semibold text-green-700 mt-0.5">
+                    University: {q.university}
+                  </p>
+                )}
+                {q.accreditation && (
+                  <p className="text-[11px] font-semibold text-green-700 mt-0.5">
+                    Accreditation: {q.accreditation}
+                  </p>
+                )}
                 <p className="text-[11px] text-slate-500 mt-1">{q.description}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
@@ -229,6 +241,26 @@ export const AdminQualificationsTab: React.FC = () => {
                   type="text"
                   value={editingQual.year}
                   onChange={(e) => setEditingQual({ ...editingQual, year: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Affiliated University (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. BFUHS, Faridkot"
+                  value={editingQual.university || ''}
+                  onChange={(e) => setEditingQual({ ...editingQual, university: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Accreditation (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Royal Liverpool Academy, UK"
+                  value={editingQual.accreditation || ''}
+                  onChange={(e) => setEditingQual({ ...editingQual, accreditation: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-2xl"
                 />
               </div>

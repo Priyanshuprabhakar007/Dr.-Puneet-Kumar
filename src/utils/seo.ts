@@ -455,6 +455,16 @@ export function getSeoForPath(rawPath: string, db: AppData, origin: string): Seo
   };
 }
 
+export function getSafeHeroImageUrl(rawUrl?: string | null): string | null {
+  if (!rawUrl || typeof rawUrl !== 'string') return null;
+  const trimmed = rawUrl.trim();
+  if (trimmed.startsWith('https://')) return trimmed;
+  if (process.env.NODE_ENV !== 'production' && trimmed.startsWith('http://')) return trimmed;
+  if (trimmed.startsWith('data:')) return trimmed;
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return trimmed;
+  return null;
+}
+
 export function buildInjectedHtml(html: string, seo: SeoMetadata, db: AppData, origin: string): string {
   const defaultImage = `${origin}/aggarwal-clinic-logo.png`;
 
@@ -506,6 +516,30 @@ export function buildInjectedHtml(html: string, seo: SeoMetadata, db: AppData, o
     }
   }
 
+  // 5. Above-the-fold Hero Image optimization (Homepage only)
+  // Do NOT preload on /admin, blog detail pages, treatment pages, or 404 pages
+  const isHomepage = seo.status === 200 && (seo.canonicalUrl === `${origin}/` || seo.canonicalUrl === origin);
+  const heroImageUrl = isHomepage ? getSafeHeroImageUrl(db.hero?.doctorPhotoUrl) : null;
+  const heroTags: string[] = [];
+
+  if (isHomepage && heroImageUrl) {
+    if (heroImageUrl.startsWith('https://')) {
+      try {
+        const heroUrlObj = new URL(heroImageUrl);
+        if (heroUrlObj.origin && heroUrlObj.origin !== origin) {
+          heroTags.push(`<link rel="preconnect" href="${escapeHtml(heroUrlObj.origin)}" />`);
+        }
+      } catch {
+        // ignore malformed URL
+      }
+    }
+
+    heroTags.push(
+      `<link rel="preload" as="image" href="${escapeHtml(heroImageUrl)}" fetchpriority="high" />`,
+      `<meta name="app-hero-image" content="${escapeHtml(heroImageUrl)}" />`
+    );
+  }
+
   const tags = [
     `<meta name="app-public-origin" content="${escapeHtml(origin)}" />`,
     `<title>${escapeHtml(seo.title)}</title>`,
@@ -522,6 +556,7 @@ export function buildInjectedHtml(html: string, seo: SeoMetadata, db: AppData, o
     `<meta name="twitter:title" content="${escapeHtml(seo.title)}" />`,
     `<meta name="twitter:description" content="${escapeHtml(seo.description)}" />`,
     `<meta name="twitter:image" content="${escapeHtml(seo.ogImage)}" />`,
+    ...heroTags,
     ...scriptTags
   ].join('\n    ');
 
@@ -542,6 +577,8 @@ export function buildInjectedHtml(html: string, seo: SeoMetadata, db: AppData, o
     .replace(/<meta\s+name=["']twitter:title["'][^>]*>/gi, '')
     .replace(/<meta\s+name=["']twitter:description["'][^>]*>/gi, '')
     .replace(/<meta\s+name=["']twitter:image["'][^>]*>/gi, '')
+    .replace(/<link\s+rel=["']preload["'][^>]*as=["']image["'][^>]*>/gi, '')
+    .replace(/<meta\s+name=["']app-hero-image["'][^>]*>/gi, '')
     .replace(/<script\s+type=["']application\/ld\+json["'][^>]*>[\s\S]*?<\/script>/gi, '');
 
   // Inject right after <head>

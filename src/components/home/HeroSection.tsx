@@ -16,6 +16,25 @@ import {
   Building2
 } from 'lucide-react';
 
+const FALLBACK_HERO_IMAGE = 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1200&auto=format&fit=crop';
+
+function isValidImageUrl(url?: string | null): boolean {
+  if (!url || typeof url !== 'string') return false;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('https://')) return true;
+  if (trimmed.startsWith('http://')) return true;
+  if (trimmed.startsWith('data:')) return true;
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) return true;
+  return false;
+}
+
+function getServerHeroImage(): string | null {
+  if (typeof document === 'undefined') return null;
+  const meta = document.querySelector('meta[name="app-hero-image"]');
+  const content = meta?.getAttribute('content')?.trim();
+  return isValidImageUrl(content) ? content! : null;
+}
+
 export const HeroSection: React.FC = () => {
   const { data, openAppointmentModal } = useSite();
   const { hero, settings } = data;
@@ -26,10 +45,13 @@ export const HeroSection: React.FC = () => {
   const yContent = useTransform(scrollY, [0, 800], [0, -25]);
   const opacityBg = useTransform(scrollY, [0, 600], [1, 0.4]);
 
-  // Use the provided photo (supporting both URLs and base64) or a high-quality fallback
-  const photoUrl = hero.doctorPhotoUrl && (hero.doctorPhotoUrl.startsWith('data:') || hero.doctorPhotoUrl.includes('.') || hero.doctorPhotoUrl.length > 100)
-    ? hero.doctorPhotoUrl 
-    : 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1200&auto=format&fit=crop';
+  // Immediately resolve server-injected hero image to prevent LCP delay on refresh
+  const serverHeroImage = React.useMemo(() => getServerHeroImage(), []);
+
+  // Use the verified site photo, immediate server hero image, or fallback
+  const photoUrl = isValidImageUrl(hero.doctorPhotoUrl)
+    ? hero.doctorPhotoUrl
+    : (serverHeroImage || FALLBACK_HERO_IMAGE);
 
   return (
     <section className="relative lg:min-h-screen flex flex-col justify-center overflow-hidden bg-slate-900" id="hero">

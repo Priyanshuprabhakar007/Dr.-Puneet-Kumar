@@ -976,7 +976,7 @@ ${allPages
 
         const rawIndexHtml = fs.readFileSync(indexHtmlPath, 'utf-8');
         const transformedHtml = await vite.transformIndexHtml(req.originalUrl || req.url, rawIndexHtml);
-        const db = await getDatabaseAsync();
+        const db = req.path === '/' ? await getDatabaseAsync(true) : await getDatabaseAsync();
         const origin = getRequestOrigin(req);
         const seo = getSeoForPath(req.path, db, origin);
 
@@ -1069,7 +1069,7 @@ ${allPages
           return res.status(500).send('Application HTML template not found');
         }
 
-        const db = await getDatabaseAsync();
+        const db = req.path === '/' ? await getDatabaseAsync(true) : await getDatabaseAsync();
         const origin = getRequestOrigin(req);
         const seo = getSeoForPath(req.path, db, origin);
 

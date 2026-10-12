@@ -17,7 +17,7 @@ export const AdminHeroTab: React.FC = () => {
       primaryButtonUrl: h.primaryButtonUrl || '/book-appointment',
       secondaryButtonLabel: h.secondaryButtonLabel || 'Call Now',
       secondaryButtonUrl: h.secondaryButtonUrl || 'tel:+919876543210',
-      doctorPhotoUrl: h.doctorPhotoUrl || 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=900&auto=format&fit=crop',
+      doctorPhotoUrl: h.doctorPhotoUrl || '',
       experienceYears: h.experienceYears || '12+ Years Experience',
       specializationBadge: h.specializationBadge || 'Diabetes Specialist',
       internalMedicineBadge: h.internalMedicineBadge || 'Internal Medicine (MD)',

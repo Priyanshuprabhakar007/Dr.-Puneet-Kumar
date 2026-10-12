@@ -16,8 +16,6 @@ import {
   Building2
 } from 'lucide-react';
 
-const FALLBACK_HERO_IMAGE = 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1200&auto=format&fit=crop';
-
 function isValidImageUrl(url?: string | null): boolean {
   if (!url || typeof url !== 'string') return false;
   const trimmed = url.trim();
@@ -45,13 +43,12 @@ export const HeroSection: React.FC = () => {
   const yContent = useTransform(scrollY, [0, 800], [0, -25]);
   const opacityBg = useTransform(scrollY, [0, 600], [1, 0.4]);
 
-  // Immediately resolve server-injected hero image to prevent LCP delay on refresh
+  // Priority: 1. Server-injected hero image, 2. Valid CMS hero image, 3. No image
   const serverHeroImage = React.useMemo(() => getServerHeroImage(), []);
-
-  // Use the verified site photo, immediate server hero image, or fallback
-  const photoUrl = isValidImageUrl(hero.doctorPhotoUrl)
+  const cmsHeroImage = isValidImageUrl(hero.doctorPhotoUrl)
     ? hero.doctorPhotoUrl
-    : (serverHeroImage || FALLBACK_HERO_IMAGE);
+    : null;
+  const photoUrl = serverHeroImage || cmsHeroImage || null;
 
   return (
     <section className="relative lg:min-h-screen flex flex-col justify-center overflow-hidden bg-slate-900" id="hero">
@@ -60,14 +57,16 @@ export const HeroSection: React.FC = () => {
         className="relative lg:absolute lg:inset-0 h-[50vh] lg:h-full z-0 select-none overflow-hidden pt-20 lg:pt-0"
         style={{ y: yImage, opacity: opacityBg }}
       >
-        <img 
-          src={photoUrl} 
-          alt={data.doctorProfile.name}
-          loading="eager"
-          fetchPriority="high"
-          decoding="async"
-          className="w-full h-full object-cover object-[75%_35%] sm:object-right lg:object-[85%_center] lg:opacity-80 transition-all duration-1000 brightness-[1.05] contrast-[1.05]"
-        />
+        {photoUrl && (
+          <img 
+            src={photoUrl} 
+            alt={data.doctorProfile.name}
+            loading="eager"
+            fetchPriority="high"
+            decoding="async"
+            className="w-full h-full object-cover object-[75%_35%] sm:object-right lg:object-[85%_center] lg:opacity-80 transition-all duration-1000 brightness-[1.05] contrast-[1.05]"
+          />
+        )}
         {/* Gradients */}
         {/* Desktop: Strong left shadow */}
         <div className="absolute inset-0 bg-gradient-to-r from-slate-900 via-slate-900/40 to-transparent z-10 hidden lg:block" />

@@ -25,7 +25,7 @@ export const initialData: AppData = {
     primaryButtonUrl: '/book-appointment',
     secondaryButtonLabel: 'Call Now',
     secondaryButtonUrl: 'tel:+919876543210',
-    doctorPhotoUrl: '41f7ab1c-6d57-4048-b31a-9ccd54ac484f.png',
+    doctorPhotoUrl: '',
     experienceYears: '12+ Years Experience',
     specializationBadge: 'Diabetes & Internal Medicine',
     internalMedicineBadge: 'Senior Physician (MD)',
@@ -40,8 +40,8 @@ export const initialData: AppData = {
       'He believes in evidence-based clinical care combined with thorough patient education. Conditions such as Diabetes Mellitus, Hypertension, and Thyroid Disorders require a sustained therapeutic partnership focusing on lifestyle optimization and complication mitigation.',
       'Dr. Puneet regularly participates in national and international medical colloquiums, ensuring his patients receive the latest guideline-directed therapeutics, advanced diabetic care protocols, and comprehensive holistic medicine.'
     ],
-    photoUrl: '41f7ab1c-6d57-4048-b31a-9ccd54ac484f.png',
-    secondaryPhotoUrl: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?q=80&w=900&auto=format&fit=crop',
+    photoUrl: '',
+    secondaryPhotoUrl: '',
     degrees: 'MBBS, MD (Internal Medicine), Fellowship in Diabetes',
     experienceYears: 12,
     patientsTreated: '25,000+',
@@ -1065,24 +1065,6 @@ A unique and dangerous characteristic of Dengue is that the **critical phase beg
   },
   media: [
     {
-      id: 'med-1',
-      name: 'Dr. Puneet Kumar Portrait',
-      url: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=900&auto=format&fit=crop',
-      category: 'Doctor Photos',
-      altText: 'Dr. Puneet Kumar Senior Physician & Diabetes Specialist',
-      uploadedAt: '2026-09-01',
-      size: '240 KB'
-    },
-    {
-      id: 'med-2',
-      name: 'Doctor In Consultation',
-      url: 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?q=80&w=900&auto=format&fit=crop',
-      category: 'Doctor Photos',
-      altText: 'Doctor discussing diabetes treatment plan with patient',
-      uploadedAt: '2026-09-01',
-      size: '310 KB'
-    },
-    {
       id: 'med-3',
       name: 'Blood Glucose Testing Kit',
       url: 'https://images.unsplash.com/photo-1579684385127-1ef15d508118?q=80&w=900&auto=format&fit=crop',
@@ -1117,7 +1099,7 @@ A unique and dangerous characteristic of Dengue is that the **critical phase beg
       'Internal Medicine Specialist Mohali'
     ],
     canonicalUrl: '',
-    ogImage: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1200&auto=format&fit=crop',
+    ogImage: '/aggarwal-clinic-logo.png',
     localKeywords: [
       'Physician in Mohali Sector 71',
       'Diabetes Clinic Phase 7 Mohali',

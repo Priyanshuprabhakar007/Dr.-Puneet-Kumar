@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { SiteProvider, useSite } from './context/SiteContext';
 
@@ -33,8 +33,64 @@ const AdminPage = React.lazy(() => import('./pages/AdminPage').then(m => ({ defa
 import { getSeoForPath, safeJsonLd } from './utils/seo';
 
 function AppContent() {
-  const { currentPath, data, navigate } = useSite();
+  const { currentPath, data, navigate, isLoading, isAppointmentModalOpen, openAppointmentModal } = useSite();
   const shouldReduceMotion = useReducedMotion();
+  const autoPopupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-open appointment popup 5 seconds after public homepage loads (once per session)
+  useEffect(() => {
+    const isHomePage = currentPath === '/' || currentPath === '';
+
+    // If modal was opened manually before timer finishes, mark as triggered and cancel timer
+    if (isAppointmentModalOpen) {
+      try {
+        sessionStorage.setItem('dr_puneet_appointment_popup_shown', 'true');
+      } catch {
+        // Safe fallback for restricted storage environments
+      }
+      if (autoPopupTimeoutRef.current) {
+        clearTimeout(autoPopupTimeoutRef.current);
+        autoPopupTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    // Do not run on non-homepage routes (e.g. /admin, /treatments) or while initial data is loading
+    if (!isHomePage || isLoading) {
+      if (autoPopupTimeoutRef.current) {
+        clearTimeout(autoPopupTimeoutRef.current);
+        autoPopupTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    // Check if already displayed in this tab session
+    try {
+      if (sessionStorage.getItem('dr_puneet_appointment_popup_shown') === 'true') {
+        return;
+      }
+    } catch {
+      // In case sessionStorage is blocked
+    }
+
+    // Start 5-second timer
+    autoPopupTimeoutRef.current = setTimeout(() => {
+      try {
+        sessionStorage.setItem('dr_puneet_appointment_popup_shown', 'true');
+      } catch {
+        // Safe fallback
+      }
+      openAppointmentModal();
+      autoPopupTimeoutRef.current = null;
+    }, 5000);
+
+    return () => {
+      if (autoPopupTimeoutRef.current) {
+        clearTimeout(autoPopupTimeoutRef.current);
+        autoPopupTimeoutRef.current = null;
+      }
+    };
+  }, [currentPath, isLoading, isAppointmentModalOpen, openAppointmentModal]);
 
   // Scroll to top upon route change
   useEffect(() => {

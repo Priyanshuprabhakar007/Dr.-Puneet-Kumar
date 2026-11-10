@@ -57,6 +57,9 @@ export const CityLandingPage: React.FC<CityLandingPageProps> = ({ cityKey }) => 
 
   return (
     <div className="bg-white min-h-screen">
+      {/* Top Spacer for Fixed Header */}
+      <div className="bg-slate-950 h-24 lg:h-28 w-full" aria-hidden="true" />
+
       {/* 1. Breadcrumb Bar */}
       <div className="bg-slate-100/80 border-b border-slate-200/80 py-3">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">

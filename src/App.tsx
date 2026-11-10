@@ -30,6 +30,7 @@ const PrivacyPolicyPage = React.lazy(() => import('./pages/LegalPages').then(m =
 const TermsPage = React.lazy(() => import('./pages/LegalPages').then(m => ({ default: m.TermsPage })));
 const MedicalDisclaimerPage = React.lazy(() => import('./pages/LegalPages').then(m => ({ default: m.MedicalDisclaimerPage })));
 const AdminPage = React.lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
+const CityLandingPage = React.lazy(() => import('./pages/CityLandingPage').then(m => ({ default: m.CityLandingPage })));
 import { getSeoForPath, safeJsonLd } from './utils/seo';
 
 function AppContent() {
@@ -255,6 +256,12 @@ function AppContent() {
       pageComponent = <TreatmentDetailPage />;
     } else if (currentPath === '/diabetes-care') {
       pageComponent = <DiabetesCarePage />;
+    } else if (currentPath === '/diabetes-specialist-mohali') {
+      pageComponent = <CityLandingPage cityKey="mohali" />;
+    } else if (currentPath === '/diabetes-specialist-chandigarh') {
+      pageComponent = <CityLandingPage cityKey="chandigarh" />;
+    } else if (currentPath === '/diabetes-specialist-panchkula') {
+      pageComponent = <CityLandingPage cityKey="panchkula" />;
     } else if (currentPath === '/patient-resources') {
       pageComponent = <PatientResourcesPage />;
     } else if (currentPath === '/videos') {

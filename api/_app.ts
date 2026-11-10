@@ -899,6 +899,9 @@ export async function createApp(): Promise<express.Express> {
       '/about',
       '/treatments',
       '/diabetes-care',
+      '/diabetes-specialist-mohali',
+      '/diabetes-specialist-chandigarh',
+      '/diabetes-specialist-panchkula',
       '/patient-resources',
       '/videos',
       '/blog',
@@ -934,7 +937,7 @@ ${allPages
     (page) => `  <url>
     <loc>${escapeHtml(origin + page.url)}</loc>${page.lastmod ? `\n    <lastmod>${escapeHtml(page.lastmod)}</lastmod>` : ''}
     <changefreq>weekly</changefreq>
-    <priority>${page.url === '' ? '1.0' : page.url.startsWith('/treatments') || page.url === '/diabetes-care' ? '0.9' : '0.8'}</priority>
+    <priority>${page.url === '' ? '1.0' : page.url.startsWith('/treatments') || page.url === '/diabetes-care' || page.url.startsWith('/diabetes-specialist') ? '0.9' : '0.8'}</priority>
   </url>`
   )
   .join('\n')}

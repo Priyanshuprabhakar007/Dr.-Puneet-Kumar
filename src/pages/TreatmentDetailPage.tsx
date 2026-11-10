@@ -441,6 +441,48 @@ export const TreatmentDetailPage: React.FC<{ slug?: string }> = ({ slug: propSlu
                 <p>📞 Phone: {settings.primaryPhone}</p>
               </div>
             </div>
+
+            {/* Regional Consultation Navigation */}
+            {treatment.slug.includes('diabetes') && (
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-xs space-y-2">
+                <p className="font-bold text-slate-800">Tricity Regional Patient Guides</p>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  Explore clinic location, directions, and consultation details for your city:
+                </p>
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <a
+                    href="/diabetes-specialist-mohali"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate('/diabetes-specialist-mohali');
+                    }}
+                    className="text-blue-700 hover:underline font-semibold"
+                  >
+                    • Mohali Diabetes Specialist →
+                  </a>
+                  <a
+                    href="/diabetes-specialist-chandigarh"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate('/diabetes-specialist-chandigarh');
+                    }}
+                    className="text-blue-700 hover:underline font-semibold"
+                  >
+                    • Diabetes Care Near Chandigarh →
+                  </a>
+                  <a
+                    href="/diabetes-specialist-panchkula"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate('/diabetes-specialist-panchkula');
+                    }}
+                    className="text-blue-700 hover:underline font-semibold"
+                  >
+                    • Diabetes Care Near Panchkula →
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

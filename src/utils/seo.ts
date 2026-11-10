@@ -371,7 +371,106 @@ export function getSeoForPath(rawPath: string, db: AppData, origin: string): Seo
     };
   }
 
-  // 13. Legal Pages
+  // 13. City Landing Page: Mohali Local SEO
+  if (cleanPath === '/diabetes-specialist-mohali') {
+    return {
+      status: 200,
+      isFound: true,
+      title: 'Diabetes Specialist in Mohali | Dr. Puneet Kumar',
+      description: 'Consult Dr. Puneet Kumar, Senior Physician & Diabetes Specialist in Mohali with 15+ years clinical expertise. Evidence-based Type 2 diabetes and metabolic care.',
+      canonicalUrl: `${origin}/diabetes-specialist-mohali`,
+      robots: 'index, follow',
+      ogType: 'article',
+      ogImage: defaultImage,
+      twitterCard: 'summary_large_image',
+      breadcrumbs: [
+        { name: 'Home', url: `${origin}/` },
+        { name: 'Diabetes Care', url: `${origin}/diabetes-care` },
+        { name: 'Mohali Diabetes Specialist', url: `${origin}/diabetes-specialist-mohali` }
+      ],
+      schemaJson: {
+        '@context': 'https://schema.org',
+        '@type': 'MedicalWebPage',
+        name: 'Diabetes Specialist in Mohali | Dr. Puneet Kumar',
+        description: 'Comprehensive Type 2 diabetes management, continuous glucose monitoring, and metabolic health care by Senior Physician Dr. Puneet Kumar in Mohali.',
+        url: `${origin}/diabetes-specialist-mohali`,
+        medicalSpecialty: ['Endocrine', 'InternalMedicine', 'GeneralPractice'],
+        about: {
+          '@type': 'MedicalCondition',
+          name: 'Diabetes Mellitus',
+          alternateName: 'Type 2 Diabetes'
+        }
+      }
+    };
+  }
+
+  // 14. City Landing Page: Chandigarh Local SEO
+  if (cleanPath === '/diabetes-specialist-chandigarh') {
+    return {
+      status: 200,
+      isFound: true,
+      title: 'Diabetes Specialist Near Chandigarh | Dr. Puneet Kumar',
+      description: 'Looking for a diabetes specialist near Chandigarh? Consult Senior Physician Dr. Puneet Kumar at his verified Mohali clinic. Advanced metabolic & HbA1c care.',
+      canonicalUrl: `${origin}/diabetes-specialist-chandigarh`,
+      robots: 'index, follow',
+      ogType: 'article',
+      ogImage: defaultImage,
+      twitterCard: 'summary_large_image',
+      breadcrumbs: [
+        { name: 'Home', url: `${origin}/` },
+        { name: 'Diabetes Care', url: `${origin}/diabetes-care` },
+        { name: 'Chandigarh Diabetes Care', url: `${origin}/diabetes-specialist-chandigarh` }
+      ],
+      schemaJson: {
+        '@context': 'https://schema.org',
+        '@type': 'MedicalWebPage',
+        name: 'Diabetes Specialist Near Chandigarh | Dr. Puneet Kumar',
+        description: 'Specialized diabetes consultations, prescription reviews, and metabolic care for patients from Chandigarh at Dr. Puneet Kumar’s verified Mohali clinic.',
+        url: `${origin}/diabetes-specialist-chandigarh`,
+        medicalSpecialty: ['Endocrine', 'InternalMedicine', 'GeneralPractice'],
+        about: {
+          '@type': 'MedicalCondition',
+          name: 'Diabetes Mellitus',
+          alternateName: 'Type 2 Diabetes'
+        }
+      }
+    };
+  }
+
+  // 15. City Landing Page: Panchkula Local SEO
+  if (cleanPath === '/diabetes-specialist-panchkula') {
+    return {
+      status: 200,
+      isFound: true,
+      title: 'Diabetes Specialist Near Panchkula | Dr. Puneet Kumar',
+      description: 'Specialized diabetes care for patients from Panchkula. Consult Dr. Puneet Kumar in Mohali for Type 2 diabetes management, insulin guidance, and metabolic health.',
+      canonicalUrl: `${origin}/diabetes-specialist-panchkula`,
+      robots: 'index, follow',
+      ogType: 'article',
+      ogImage: defaultImage,
+      twitterCard: 'summary_large_image',
+      breadcrumbs: [
+        { name: 'Home', url: `${origin}/` },
+        { name: 'Diabetes Care', url: `${origin}/diabetes-care` },
+        { name: 'Panchkula Diabetes Care', url: `${origin}/diabetes-specialist-panchkula` }
+      ],
+      schemaJson: {
+        '@context': 'https://schema.org',
+        '@type': 'MedicalWebPage',
+        name: 'Diabetes Specialist Near Panchkula | Dr. Puneet Kumar',
+        description: 'Evidence-based diabetes treatment, diabetic neuropathy screening, and metabolic health for patients traveling from Panchkula to Dr. Puneet Kumar in Mohali.',
+        url: `${origin}/diabetes-specialist-panchkula`,
+        medicalSpecialty: ['Endocrine', 'InternalMedicine', 'GeneralPractice'],
+        about: {
+          '@type': 'MedicalCondition',
+          name: 'Diabetes Mellitus',
+          alternateName: 'Type 2 Diabetes'
+        }
+      }
+    };
+  }
+
+  // 16. Legal Pages
   if (cleanPath === '/privacy-policy') {
     return {
       status: 200,

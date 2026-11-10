@@ -12,7 +12,8 @@ import {
   Droplet,
   ArrowRight,
   Stethoscope,
-  Sparkles
+  Sparkles,
+  MapPin
 } from 'lucide-react';
 
 export const DiabetesCarePage: React.FC = () => {
@@ -223,10 +224,56 @@ export const DiabetesCarePage: React.FC = () => {
           <div className="text-center pt-4">
             <button
               onClick={() => openAppointmentModal('HbA1c Evaluation')}
-              className="px-6 py-3 bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs rounded-2xl shadow-xs"
+              className="px-6 py-3 bg-blue-700 hover:bg-blue-800 text-white font-semibold text-xs rounded-2xl shadow-xs cursor-pointer"
             >
               Discuss Your HbA1c Report with Dr. Puneet
             </button>
+          </div>
+
+          {/* Regional Consultation Guides */}
+          <div className="mt-12 p-6 rounded-2xl bg-white border border-slate-200/80 shadow-xs text-center space-y-4">
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-800 uppercase tracking-wider">
+              <MapPin className="w-3.5 h-3.5 text-blue-600" />
+              <span>Consultations for Tricity Patients</span>
+            </div>
+            <h4 className="text-base sm:text-lg font-bold text-slate-900">
+              Personalized Diabetes Management Across Mohali, Chandigarh & Panchkula
+            </h4>
+            <p className="text-xs sm:text-sm text-slate-600 max-w-2xl mx-auto leading-relaxed">
+              Dr. Puneet Kumar consults from verified practice locations in Mohali (Livasa Hospital, Sector 71 & Aggarwal Clinic), providing accessible, structured care for patients traveling across the Tricity.
+            </p>
+            <div className="pt-2 flex flex-wrap justify-center gap-3">
+              <a
+                href="/diabetes-specialist-mohali"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate('/diabetes-specialist-mohali');
+                }}
+                className="px-4 py-2 bg-slate-50 hover:bg-blue-50 text-blue-800 border border-slate-200 rounded-xl text-xs font-semibold transition-colors"
+              >
+                Mohali Diabetes Guide →
+              </a>
+              <a
+                href="/diabetes-specialist-chandigarh"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate('/diabetes-specialist-chandigarh');
+                }}
+                className="px-4 py-2 bg-slate-50 hover:bg-blue-50 text-blue-800 border border-slate-200 rounded-xl text-xs font-semibold transition-colors"
+              >
+                Chandigarh Patients Info →
+              </a>
+              <a
+                href="/diabetes-specialist-panchkula"
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigate('/diabetes-specialist-panchkula');
+                }}
+                className="px-4 py-2 bg-slate-50 hover:bg-blue-50 text-blue-800 border border-slate-200 rounded-xl text-xs font-semibold transition-colors"
+              >
+                Panchkula Patients Info →
+              </a>
+            </div>
           </div>
         </div>
       </motion.section>

@@ -15,6 +15,7 @@ import { LatestBlogsSection } from '../components/home/LatestBlogsSection';
 import { FaqSection } from '../components/home/FaqSection';
 import { AppointmentFormSection } from '../components/home/AppointmentFormSection';
 import { LocationSection } from '../components/home/LocationSection';
+import { TricityDiabetesSection } from '../components/home/TricityDiabetesSection';
 import { FinalCtaSection } from '../components/home/FinalCtaSection';
 
 export const HomePage: React.FC = () => {
@@ -65,7 +66,10 @@ export const HomePage: React.FC = () => {
       {/* 15. Clinic Address & Google Maps Embed */}
       <LocationSection />
 
-      {/* 16. Final Consultation CTA */}
+      {/* 16. Tricity Local SEO Consultation Information */}
+      <TricityDiabetesSection />
+
+      {/* 17. Final Consultation CTA */}
       <FinalCtaSection />
     </div>
   );
